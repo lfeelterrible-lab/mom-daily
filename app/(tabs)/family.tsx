@@ -2,22 +2,26 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
 import { FeedbackToast } from '@/components/FeedbackToast';
 import { AppMark } from '@/components/AppMark';
 import { defaultHabits } from '@/constants/habits';
+import { ensureSession } from '@/features/auth/auth';
+import { getPairMembers, joinPair, type PairMember } from '@/features/pairing/pairing';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { usePair } from '@/hooks/usePair';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { DEMO_ME_ID, DEMO_MOM_ID, DEMO_PAIR_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { useMomDailyStore, type Actor } from '@/store/useMomDailyStore';
 
 export default function FamilyScreen() {
   const { colors, isDark } = useAppTheme();
   const { inviteCode, displayNames } = usePair();
   const demoMode = useMomDailyStore((state) => state.demoMode);
+  const pairId = useMomDailyStore((state) => state.pairId);
+  const setPairConnection = useMomDailyStore((state) => state.setPairConnection);
   const activeActor = useMomDailyStore((state) => state.activeActor);
   const setActiveActor = useMomDailyStore((state) => state.setActiveActor);
   const setDemoMode = useMomDailyStore((state) => state.setDemoMode);
@@ -33,6 +37,10 @@ export default function FamilyScreen() {
   const lastEvent = useMomDailyStore((state) => state.lastEvent);
   const clearEvent = useMomDailyStore((state) => state.clearEvent);
   const [copied, setCopied] = useState(false);
+  const [joinInviteCode, setJoinInviteCode] = useState('');
+  const [joinError, setJoinError] = useState('');
+  const [joinMessage, setJoinMessage] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     if (!lastEvent) return;
@@ -49,6 +57,64 @@ export default function FamilyScreen() {
   const reopenPairing = () => {
     setHasSeenOnboarding(false);
     router.replace('/');
+  };
+
+  const connectWithInvite = async () => {
+    const normalizedCode = joinInviteCode.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (normalizedCode.length !== 6) {
+      setJoinMessage('');
+      setJoinError('请输入 6 位邀请码');
+      return;
+    }
+
+    setJoinError('');
+    setJoinMessage('');
+    setIsJoining(true);
+
+    if (demoMode || !isSupabaseConfigured) {
+      setPairConnection({
+        pairId: pairId || DEMO_PAIR_ID,
+        inviteCode: normalizedCode,
+        displayNames: { me: '我', mom: '妈妈' },
+        userIds: { me: DEMO_ME_ID, mom: DEMO_MOM_ID },
+        activeActor: 'mom',
+      });
+      setJoinInviteCode('');
+      setJoinMessage('演示绑定成功，可以切换到妈妈身份测试啦');
+      setIsJoining(false);
+      return;
+    }
+
+    const sessionResult = await ensureSession();
+    const currentUserId = sessionResult.data.session?.user.id;
+    if (sessionResult.error || !currentUserId) {
+      setJoinError('暂时连接不上服务，请稍后再试');
+      setIsJoining(false);
+      return;
+    }
+
+    const pairResult = await joinPair(normalizedCode, '妈妈');
+    const pair = pairResult.data as { id?: string; invite_code?: string } | null;
+    if (pairResult.error || !pair?.id) {
+      setJoinError(pairResult.error?.message ?? '邀请码无效或家庭已经满员');
+      setIsJoining(false);
+      return;
+    }
+
+    const membersResult = await getPairMembers(pair.id);
+    const members = (membersResult.data ?? []) as PairMember[];
+    const other = members.find((member) => member.id !== currentUserId);
+    const current = members.find((member) => member.id === currentUserId);
+    setPairConnection({
+      pairId: pair.id,
+      inviteCode: pair.invite_code ?? normalizedCode,
+      displayNames: { me: other?.display_name ?? '我', mom: current?.display_name ?? '妈妈' },
+      userIds: { me: other?.id ?? '', mom: currentUserId },
+      activeActor: 'mom',
+    });
+    setJoinInviteCode('');
+    setJoinMessage('我们连接成功啦');
+    setIsJoining(false);
   };
 
   return (
@@ -109,6 +175,55 @@ export default function FamilyScreen() {
               <Text style={[styles.shareText, { color: colors.inkMuted }]}>把邀请码发给妈妈，绑定后就能实时看到彼此的完成状态。</Text>
             </View>
             <Ionicons name="chevron-forward" color={colors.inkMuted} size={17} />
+          </View>
+
+          <View style={[styles.inviteCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+            <View style={styles.inviteHeader}>
+              <View style={[styles.inviteIcon, { backgroundColor: colors.surfaceGreen }]}>
+                <Ionicons name="key-outline" color={colors.accent} size={18} />
+              </View>
+              <View style={styles.inviteCopy}>
+                <Text style={[styles.inviteTitle, { color: colors.ink }]}>输入邀请码</Text>
+                <Text style={[styles.inviteSubtitle, { color: colors.inkMuted }]}>输错了也没关系，随时可以重新输入</Text>
+              </View>
+            </View>
+            <View style={styles.inviteInputRow}>
+              <TextInput
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!isJoining}
+                maxLength={6}
+                onChangeText={(value) => {
+                  setJoinInviteCode(value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase());
+                  if (joinError) setJoinError('');
+                  if (joinMessage) setJoinMessage('');
+                }}
+                onSubmitEditing={() => void connectWithInvite()}
+                placeholder="例如 MOM826"
+                placeholderTextColor={colors.inkSoft}
+                returnKeyType="done"
+                value={joinInviteCode}
+                style={[styles.inviteInput, { color: colors.ink, backgroundColor: colors.surfaceMuted, borderColor: colors.line }]}
+              />
+              <Pressable
+                accessibilityRole="button"
+                disabled={isJoining}
+                onPress={() => void connectWithInvite()}
+                style={[styles.inviteButton, { backgroundColor: colors.ink, opacity: isJoining ? 0.7 : 1 }]}
+              >
+                <Text style={[styles.inviteButtonText, { color: colors.white }]}>{isJoining ? '连接中…' : '连接'}</Text>
+              </Pressable>
+            </View>
+            <View style={styles.inviteMeta}>
+              <Text style={[styles.inviteHint, { color: colors.inkSoft }]}>{joinInviteCode.length}/6 位邀请码</Text>
+              {joinInviteCode ? (
+                <Pressable onPress={() => { setJoinInviteCode(''); setJoinError(''); setJoinMessage(''); }} accessibilityRole="button">
+                  <Text style={[styles.inviteClear, { color: colors.accent }]}>清空重输</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {joinError ? <Text style={[styles.inviteError, { color: colors.accent }]}>{joinError}</Text> : null}
+            {joinMessage ? <Text style={[styles.inviteSuccess, { color: colors.success }]}>{joinMessage}</Text> : null}
           </View>
 
           {demoMode ? (
@@ -289,6 +404,21 @@ const styles = StyleSheet.create({
   shareCopy: { flex: 1, marginLeft: 11, gap: 3 },
   shareTitle: { fontSize: 13, fontWeight: '900' },
   shareText: { fontSize: 10, lineHeight: 15, fontWeight: '600' },
+  inviteCard: { borderWidth: 1, borderRadius: 21, padding: 15, marginTop: 13 },
+  inviteHeader: { flexDirection: 'row', alignItems: 'center' },
+  inviteIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  inviteCopy: { flex: 1, marginLeft: 11, gap: 3 },
+  inviteTitle: { fontSize: 13, fontWeight: '900' },
+  inviteSubtitle: { fontSize: 10, lineHeight: 15, fontWeight: '600' },
+  inviteInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 13 },
+  inviteInput: { flex: 1, height: 45, borderRadius: 13, borderWidth: 1, paddingHorizontal: 13, fontSize: 13, fontWeight: '800', letterSpacing: 1.6 },
+  inviteButton: { height: 45, minWidth: 66, borderRadius: 13, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  inviteButtonText: { fontSize: 12, fontWeight: '900' },
+  inviteMeta: { minHeight: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, marginTop: 5 },
+  inviteHint: { fontSize: 10, fontWeight: '700' },
+  inviteClear: { fontSize: 10, fontWeight: '800' },
+  inviteError: { fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 3 },
+  inviteSuccess: { fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 3 },
   demoCard: { borderWidth: 1, borderRadius: 21, padding: 15, marginTop: 13 },
   sectionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   sectionTitle: { fontSize: 17, fontWeight: '900' },
