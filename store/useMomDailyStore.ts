@@ -60,6 +60,7 @@ type Store = {
   offlineOverride: boolean;
   pairId: string;
   inviteCode: string;
+  pairMemberCount: number;
   displayNames: { me: string; mom: string };
   userIds: { me: string; mom: string };
   completions: CompletionByDate;
@@ -79,7 +80,7 @@ type Store = {
   setHasSeenOnboarding: (seen: boolean) => void;
   setOnline: (online: boolean) => void;
   setDetectedOnline: (online: boolean) => void;
-  setPairConnection: (connection: { pairId: string; inviteCode: string; displayNames: { me: string; mom: string }; userIds: { me: string; mom: string }; activeActor?: Actor }) => void;
+  setPairConnection: (connection: { pairId: string; inviteCode: string; displayNames: { me: string; mom: string }; userIds: { me: string; mom: string }; memberCount?: number; activeActor?: Actor }) => void;
   setCloudCompletions: (completions: CompletionByDate) => void;
   setNotification: (key: 'enabled' | 'morningReminder' | 'eveningReminder', value: boolean) => void;
   toggleCompletion: (habitId: string, actor?: Actor) => void;
@@ -166,6 +167,7 @@ const initialState = {
   offlineOverride: false,
   pairId: demoModeEnabled ? 'demo-pair-momdaily' : '',
   inviteCode: demoModeEnabled ? 'MOM826' : '',
+  pairMemberCount: demoModeEnabled ? 2 : 0,
   displayNames: { me: '我', mom: '妈妈' },
   userIds: demoModeEnabled ? { me: DEMO_ME_ID, mom: DEMO_MOM_ID } : { me: '', mom: '' },
   completions: demoModeEnabled ? makeInitialCompletions() : {},
@@ -193,8 +195,8 @@ export const useMomDailyStore = create<Store>()(
       setHasSeenOnboarding: (hasSeenOnboarding) => set({ hasSeenOnboarding }),
       setOnline: (isOnline) => set({ isOnline, offlineOverride: !isOnline }),
       setDetectedOnline: (isOnline) => set((state) => (state.offlineOverride ? state : { isOnline })),
-      setPairConnection: ({ pairId, inviteCode, displayNames, userIds, activeActor }) =>
-        set({ pairId, inviteCode, displayNames, userIds, ...(activeActor ? { activeActor } : {}) }),
+      setPairConnection: ({ pairId, inviteCode, displayNames, userIds, memberCount, activeActor }) =>
+        set({ pairId, inviteCode, displayNames, userIds, ...(memberCount !== undefined ? { pairMemberCount: memberCount } : {}), ...(activeActor ? { activeActor } : {}) }),
       setCloudCompletions: (completions) => set({ completions }),
       setNotification: (key, value) =>
         set((state) => ({
@@ -318,7 +320,7 @@ export const useMomDailyStore = create<Store>()(
     {
       name: 'momdaily-local-state',
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const persistedState = persisted as Partial<Store> | undefined;
         const hasLegacyDemoData = persistedState?.demoMode === true || persistedState?.pairId === DEMO_PAIR_ID;

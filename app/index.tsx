@@ -102,6 +102,11 @@ export default function OnboardingScreen() {
       }
 
       const membersResult = await getPairMembers(pair.id);
+      if (membersResult.error) {
+        setSetupError('家庭已创建，但暂时读取不到成员状态，请稍后重试');
+        setIsConnecting(false);
+        return;
+      }
       const members = (membersResult.data ?? []) as PairMember[];
       const other = members.find((member) => member.id !== currentUserId);
       const current = members.find((member) => member.id === currentUserId);
@@ -115,6 +120,7 @@ export default function OnboardingScreen() {
         userIds: activeActor === 'me'
           ? { me: currentUserId, mom: other?.id ?? '' }
           : { me: other?.id ?? '', mom: currentUserId },
+        memberCount: members.length,
         activeActor,
       });
       setIsConnecting(false);

@@ -21,6 +21,8 @@ export default function FamilyScreen() {
   const { inviteCode, displayNames } = usePair();
   const demoMode = useMomDailyStore((state) => state.demoMode);
   const pairId = useMomDailyStore((state) => state.pairId);
+  const pairMemberCount = useMomDailyStore((state) => state.pairMemberCount);
+  const userIds = useMomDailyStore((state) => state.userIds);
   const setPairConnection = useMomDailyStore((state) => state.setPairConnection);
   const activeActor = useMomDailyStore((state) => state.activeActor);
   const setActiveActor = useMomDailyStore((state) => state.setActiveActor);
@@ -41,6 +43,7 @@ export default function FamilyScreen() {
   const [joinError, setJoinError] = useState('');
   const [joinMessage, setJoinMessage] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const pairConnected = demoMode || (pairMemberCount >= 2 && Boolean(userIds.me) && Boolean(userIds.mom));
 
   useEffect(() => {
     if (!lastEvent) return;
@@ -108,6 +111,11 @@ export default function FamilyScreen() {
     }
 
     const membersResult = await getPairMembers(pair.id);
+    if (membersResult.error) {
+      setJoinError('邀请码已处理，但暂时读取不到双方状态，请刷新后再看');
+      setIsJoining(false);
+      return;
+    }
     const members = (membersResult.data ?? []) as PairMember[];
     const other = members.find((member) => member.id !== currentUserId);
     const current = members.find((member) => member.id === currentUserId);
@@ -116,10 +124,11 @@ export default function FamilyScreen() {
       inviteCode: pair.invite_code ?? normalizedCode,
       displayNames: { me: other?.display_name ?? '我', mom: current?.display_name ?? '妈妈' },
       userIds: { me: other?.id ?? '', mom: currentUserId },
+      memberCount: members.length,
       activeActor: 'mom',
     });
     setJoinInviteCode('');
-    setJoinMessage('我们连接成功啦');
+    setJoinMessage(members.length >= 2 ? '我们连接成功啦' : '邀请码已记录，等待另一位成员加入');
     setIsJoining(false);
   };
 
@@ -140,11 +149,11 @@ export default function FamilyScreen() {
             <View style={styles.pairTop}>
               <View>
                 <Text style={[styles.pairKicker, { color: colors.surfaceGreen }]}>FAMILY PAIR</Text>
-                <Text style={[styles.pairTitle, { color: colors.white }]}>我们连接成功啦</Text>
+                <Text style={[styles.pairTitle, { color: colors.white }]}>{pairConnected ? '我们连接成功啦' : '等待妈妈加入我们'}</Text>
               </View>
-              <View style={[styles.connectedPill, { backgroundColor: colors.success }]}>
-                <Ionicons name="checkmark" color={colors.white} size={12} />
-                <Text style={styles.connectedText}>已连接</Text>
+              <View style={[styles.connectedPill, { backgroundColor: pairConnected ? colors.success : colors.sun }]}>
+                <Ionicons name={pairConnected ? 'checkmark' : 'time-outline'} color={colors.white} size={12} />
+                <Text style={styles.connectedText}>{pairConnected ? '已连接' : '等待加入'}</Text>
               </View>
             </View>
             <View style={styles.pairPeople}>

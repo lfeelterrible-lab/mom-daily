@@ -268,6 +268,14 @@ exception when duplicate_object then
   null;
 end $$;
 
+-- Let the creator see the second member join without refreshing.
+do $$
+begin
+  alter publication supabase_realtime add table public.profiles;
+exception when duplicate_object then
+  null;
+end $$;
+
 -- Private avatar bucket. Store files as <auth-user-id>/avatar.<ext>.
 insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', false)

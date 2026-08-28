@@ -42,6 +42,7 @@ export const useCloudBootstrap = () => {
     const client = supabase;
     if (demoMode || !isSupabaseConfigured || !client) return undefined;
     let cancelled = false;
+    let memberChannel: ReturnType<typeof client.channel> | null = null;
 
     const load = async () => {
       const sessionResult = await ensureSession();
@@ -50,23 +51,53 @@ export const useCloudBootstrap = () => {
 
       const profileResult = await client.from('profiles').select('id, display_name, avatar_url, pair_id, invite_code').eq('id', currentUserId).maybeSingle();
       const profile = profileResult.data as { pair_id?: string; invite_code?: string } | null;
-      if (profileResult.error || !profile?.pair_id || cancelled) return;
+      const targetPairId = profile?.pair_id;
+      if (profileResult.error || !targetPairId || cancelled) return;
 
-      const membersResult = await getPairMembers(profile.pair_id);
+      const membersResult = await getPairMembers(targetPairId);
+      if (membersResult.error || cancelled) return;
       const members = (membersResult.data ?? []) as PairMember[];
       const connection = connectionFromMembers(members, currentUserId, activeActor);
       setPairConnection({
-        pairId: profile.pair_id,
+        pairId: targetPairId,
         inviteCode: profile.invite_code ?? '',
+        memberCount: members.length,
         ...connection,
         activeActor,
       });
+
+      if (!memberChannel) {
+        memberChannel = client
+          .channel('momdaily-pair-members-' + targetPairId)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'profiles',
+              filter: 'pair_id=eq.' + targetPairId,
+            },
+            async () => {
+              const latestMembersResult = await getPairMembers(targetPairId);
+              const latestMembers = (latestMembersResult.data ?? []) as PairMember[];
+              if (cancelled || latestMembersResult.error) return;
+              setPairConnection({
+                pairId: targetPairId,
+                inviteCode: profile.invite_code ?? '',
+                memberCount: latestMembers.length,
+                ...connectionFromMembers(latestMembers, currentUserId, activeActor),
+                activeActor,
+              });
+            },
+          )
+          .subscribe();
+      }
 
       const startDate = addLocalDays(date, -140);
       const completionsResult = await client
         .from('daily_completions')
         .select('habit_id, user_id, date, completed_at')
-        .eq('pair_id', profile.pair_id)
+        .eq('pair_id', targetPairId)
         .gte('date', startDate)
         .lte('date', date);
       if (cancelled || completionsResult.error) return;
@@ -78,6 +109,7 @@ export const useCloudBootstrap = () => {
     return () => {
       cancelled = true;
       clearInterval(refreshTimer);
+      if (memberChannel) void client.removeChannel(memberChannel);
     };
   }, [activeActor, date, demoMode, pairId, setCloudCompletions, setPairConnection]);
 };
