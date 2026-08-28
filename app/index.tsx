@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppMark } from '@/components/AppMark';
 import { ensureSession } from '@/features/auth/auth';
@@ -49,13 +49,35 @@ export default function OnboardingScreen() {
 
   if (hasSeenOnboarding) return null;
 
-  const finish = async () => {
-    if (setupMode && !demoMode && isSupabaseConfigured) {
-      if (setupMode === 'join' && inviteCode.trim().length !== 6) {
-        setSetupError('请输入 6 位邀请码');
-        return;
-      }
+  const resetSetup = () => {
+    setSetupMode(null);
+    setInviteCode('');
+    setSetupError('');
+    setIsConnecting(false);
+  };
 
+  const chooseSetupMode = (mode: 'start' | 'join') => {
+    setSetupError('');
+    setSetupMode(mode);
+  };
+
+  const handleTopAction = () => {
+    if (page < pages.length - 1) {
+      setPage(pages.length - 1);
+      resetSetup();
+      return;
+    }
+    resetSetup();
+  };
+
+  const finish = async () => {
+    const normalizedInviteCode = inviteCode.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (setupMode === 'join' && normalizedInviteCode.length !== 6) {
+      setSetupError('请输入 6 位邀请码');
+      return;
+    }
+
+    if (setupMode && !demoMode && isSupabaseConfigured) {
       setSetupError('');
       setIsConnecting(true);
       const sessionResult = await ensureSession();
@@ -66,7 +88,7 @@ export default function OnboardingScreen() {
         return;
       }
 
-      const pairResult = setupMode === 'start' ? await createPair('我') : await joinPair(inviteCode, '妈妈');
+      const pairResult = setupMode === 'start' ? await createPair('我') : await joinPair(normalizedInviteCode, '妈妈');
       const pair = pairResult.data as { id?: string; invite_code?: string } | null;
       if (pairResult.error || !pair?.id) {
         setSetupError(pairResult.error?.message ?? '邀请码无效或家庭已经满员');
@@ -81,7 +103,7 @@ export default function OnboardingScreen() {
       const activeActor: Actor = setupMode === 'start' ? 'me' : 'mom';
       setPairConnection({
         pairId: pair.id,
-        inviteCode: pair.invite_code ?? inviteCode.trim().toUpperCase(),
+        inviteCode: pair.invite_code ?? normalizedInviteCode,
         displayNames: activeActor === 'me'
           ? { me: current?.display_name ?? '我', mom: other?.display_name ?? '妈妈' }
           : { me: other?.display_name ?? '我', mom: current?.display_name ?? '妈妈' },
@@ -102,11 +124,12 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <View style={styles.container}>
+      <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.container}>
         <View style={styles.top}>
           <AppMark size={43} showWordmark />
-          <Pressable onPress={finish} accessibilityRole="button">
-            <Text style={[styles.skip, { color: colors.inkMuted }]}>跳过</Text>
+          <Pressable onPress={handleTopAction} accessibilityRole="button">
+            <Text style={[styles.skip, { color: colors.inkMuted }]}>{page === pages.length - 1 ? '重新选择' : '去设置'}</Text>
           </Pressable>
         </View>
 
@@ -124,11 +147,11 @@ export default function OnboardingScreen() {
             <View style={styles.setup}>
               {setupMode === null ? (
                 <>
-                  <Pressable onPress={() => { setSetupError(''); setSetupMode('start'); }} style={[styles.setupButton, { backgroundColor: colors.ink }]}>
+                  <Pressable onPress={() => chooseSetupMode('start')} style={[styles.setupButton, { backgroundColor: colors.ink }]}>
                     <Text style={[styles.setupButtonText, { color: colors.background }]}>我是发起人</Text>
                     <Ionicons name="chevron-forward" color={colors.background} size={18} />
                   </Pressable>
-                  <Pressable onPress={() => { setSetupError(''); setSetupMode('join'); }} style={[styles.setupButton, styles.outlineButton, { borderColor: colors.line }]}>
+                  <Pressable onPress={() => chooseSetupMode('join')} style={[styles.setupButton, styles.outlineButton, { borderColor: colors.line }]}>
                     <Text style={[styles.setupButtonText, { color: colors.ink }]}>输入邀请码</Text>
                     <Ionicons name="key-outline" color={colors.accent} size={17} />
                   </Pressable>
@@ -147,15 +170,36 @@ export default function OnboardingScreen() {
                 </>
               ) : (
                 <>
+                  <View style={styles.setupHeading}>
+                    <Text style={[styles.setupHeadingText, { color: colors.ink }]}>连接妈妈的家庭</Text>
+                    <Pressable onPress={resetSetup} accessibilityRole="button">
+                      <Text style={[styles.changeMode, { color: colors.accent }]}>重新选择</Text>
+                    </Pressable>
+                  </View>
                   <TextInput
                     autoCapitalize="characters"
                     autoCorrect={false}
+                    autoFocus
+                    editable={!isConnecting}
+                    maxLength={6}
+                    onSubmitEditing={() => void finish()}
                     value={inviteCode}
-                    onChangeText={setInviteCode}
-                    placeholder="输入 6 位邀请码"
+                    onChangeText={(value) => {
+                      setInviteCode(value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase());
+                      if (setupError) setSetupError('');
+                    }}
+                    placeholder="例如 MOM826"
                     placeholderTextColor={colors.inkSoft}
                     style={[styles.input, { color: colors.ink, backgroundColor: colors.surface, borderColor: colors.line }]}
                   />
+                  <View style={styles.inputMeta}>
+                    <Text style={[styles.inputHint, { color: colors.inkSoft }]}>{inviteCode.length}/6 位邀请码</Text>
+                    {inviteCode ? (
+                      <Pressable onPress={() => { setInviteCode(''); setSetupError(''); }} accessibilityRole="button">
+                        <Text style={[styles.clearInput, { color: colors.accent }]}>清空重输</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                   {setupError ? <Text style={[styles.error, { color: colors.accent }]}>{setupError}</Text> : null}
                   <Pressable disabled={isConnecting} onPress={finish} style={[styles.setupButton, { backgroundColor: colors.ink, opacity: isConnecting ? 0.7 : 1 }]}>
                     <Text style={[styles.setupButtonText, { color: colors.background }]}>{isConnecting ? '连接中…' : '连接我和妈妈'}</Text>
@@ -175,27 +219,31 @@ export default function OnboardingScreen() {
           )}
         </View>
 
-        <View style={styles.bottom}>
+          <View style={styles.bottom}>
           <View style={styles.dots}>
             {pages.map((_, index) => (
               <View key={index} style={[styles.dot, { backgroundColor: index === page ? colors.accent : colors.line, width: index === page ? 22 : 7 }]} />
             ))}
           </View>
           {page === 2 && setupMode !== null ? (
-            <Pressable onPress={() => setSetupMode(null)}>
+            <Pressable onPress={resetSetup}>
               <Text style={[styles.back, { color: colors.inkMuted }]}>返回选择</Text>
             </Pressable>
           ) : (
             <Text style={[styles.bottomNote, { color: colors.inkSoft }]}>只有你和妈妈看得到</Text>
           )}
         </View>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: {
+    flex: 1,
+  },
+  keyboard: {
     flex: 1,
   },
   container: {
@@ -283,6 +331,21 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 27,
   },
+  setupHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 3,
+    marginBottom: 1,
+  },
+  setupHeadingText: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  changeMode: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
   setupButton: {
     minHeight: 52,
     borderRadius: 18,
@@ -325,6 +388,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 2,
+  },
+  inputMeta: {
+    minHeight: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginTop: -4,
+  },
+  inputHint: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  clearInput: {
+    fontSize: 10,
+    fontWeight: '800',
   },
   error: { textAlign: 'center', fontSize: 11, fontWeight: '700', marginTop: -2 },
   bottom: {

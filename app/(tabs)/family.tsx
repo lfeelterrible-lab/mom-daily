@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +25,7 @@ export default function FamilyScreen() {
   const setThemeMode = useMomDailyStore((state) => state.setThemeMode);
   const notificationSettings = useMomDailyStore((state) => state.notificationSettings);
   const setNotification = useMomDailyStore((state) => state.setNotification);
+  const setHasSeenOnboarding = useMomDailyStore((state) => state.setHasSeenOnboarding);
   const isOnline = useMomDailyStore((state) => state.isOnline);
   const setOnline = useMomDailyStore((state) => state.setOnline);
   const pendingSync = useMomDailyStore((state) => state.pendingSync);
@@ -42,6 +44,11 @@ export default function FamilyScreen() {
     await Clipboard.setStringAsync(inviteCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
+  };
+
+  const reopenPairing = () => {
+    setHasSeenOnboarding(false);
+    router.replace('/');
   };
 
   return (
@@ -128,6 +135,10 @@ export default function FamilyScreen() {
                   </Pressable>
                 ))}
               </View>
+              <Pressable onPress={reopenPairing} style={[styles.reopenButton, { borderColor: colors.line }]} accessibilityRole="button">
+                <Ionicons name="key-outline" color={colors.accent} size={15} />
+                <Text style={[styles.reopenText, { color: colors.accent }]}>重新打开邀请码界面</Text>
+              </Pressable>
               <View style={[styles.demoFoot, { borderTopColor: colors.line }]}>
                 <View style={styles.demoFootText}>
                   <Text style={[styles.demoCurrent, { color: colors.ink }]}>当前模拟身份：{activeActor === 'me' ? '我' : '妈妈'}</Text>
@@ -288,6 +299,8 @@ const styles = StyleSheet.create({
   identityButton: { flex: 1, height: 44, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   identityEmoji: { fontSize: 17 },
   identityText: { fontSize: 12, fontWeight: '800' },
+  reopenButton: { minHeight: 38, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12 },
+  reopenText: { fontSize: 11, fontWeight: '800' },
   demoFoot: { borderTopWidth: 1, marginTop: 13, paddingTop: 12, flexDirection: 'row', alignItems: 'center' },
   demoFootText: { flex: 1, gap: 3 },
   demoCurrent: { fontSize: 11, fontWeight: '800' },
