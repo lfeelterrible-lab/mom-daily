@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { defaultHabits } from '@/constants/habits';
 import { getLocalDate } from '@/lib/date';
 import { DEMO_ME_ID, DEMO_MOM_ID, DEMO_PAIR_ID, isSupabaseConfigured } from '@/lib/supabase';
-import { syncCompletionToSupabase, syncNudgeToSupabase, syncReactionToSupabase } from '@/features/realtime/sync';
+import { syncCompletionToSupabase, syncDailyMessageToSupabase, syncNudgeToSupabase, syncReactionToSupabase } from '@/features/realtime/sync';
 import type { ThemeMode } from '@/constants/theme';
 
 export type Actor = 'me' | 'mom';
@@ -18,6 +18,13 @@ export type DailyCompletion = {
 };
 
 export type CompletionByDate = Record<string, Record<string, DailyCompletion>>;
+
+export type DailyMessage = {
+  content: string;
+  updatedAt: string;
+};
+
+export type DailyMessagesByDate = Record<string, Partial<Record<Actor, DailyMessage>>>;
 
 export type Nudge = {
   id: string;
@@ -40,7 +47,7 @@ export type Reaction = {
 
 export type PendingSync = {
   id: string;
-  type: 'completion' | 'nudge' | 'reaction';
+  type: 'completion' | 'nudge' | 'reaction' | 'message';
   payload: Record<string, string | boolean>;
 };
 
@@ -70,6 +77,7 @@ type Store = {
   userIds: { me: string; mom: string };
   pairPresence: PairPresence;
   completions: CompletionByDate;
+  dailyMessages: DailyMessagesByDate;
   nudges: Nudge[];
   reactions: Reaction[];
   pendingSync: PendingSync[];
@@ -89,9 +97,12 @@ type Store = {
   setPairConnection: (connection: { pairId: string; inviteCode: string; displayNames: { me: string; mom: string }; userIds: { me: string; mom: string }; memberCount?: number; activeActor?: Actor }) => void;
   setPairPresence: (presence: PairPresence) => void;
   setCloudCompletions: (completions: CompletionByDate) => void;
+  setCloudDailyMessages: (date: string, messages: Partial<Record<Actor, DailyMessage>>) => void;
   setNotification: (key: 'enabled' | 'morningReminder' | 'eveningReminder', value: boolean) => void;
   toggleCompletion: (habitId: string, actor?: Actor) => void;
   applyRemoteCompletion: (habitId: string, actor: Actor, completed: boolean, date?: string) => void;
+  saveDailyMessage: (content: string, actor?: Actor) => void;
+  applyRemoteDailyMessage: (actor: Actor, content: string, date?: string, updatedAt?: string) => void;
   sendNudge: (habitId: string, actor?: Actor) => void;
   addReaction: (habitId: string, emoji: string, actor?: Actor) => void;
   clearEvent: () => void;
@@ -179,6 +190,14 @@ const initialState = {
   userIds: demoModeEnabled ? { me: DEMO_ME_ID, mom: DEMO_MOM_ID } : { me: '', mom: '' },
   pairPresence: demoModeEnabled ? { me: true, mom: true } : { me: false, mom: false },
   completions: demoModeEnabled ? makeInitialCompletions() : {},
+  dailyMessages: demoModeEnabled
+    ? {
+        [getLocalDate()]: {
+          me: { content: '今天也慢慢来，记得吃好每一顿饭。', updatedAt: nowIso() },
+          mom: { content: '好呀，我们一起把今天过好。', updatedAt: nowIso() },
+        },
+      }
+    : {},
   nudges: [] as Nudge[],
   reactions: [
     { id: 'reaction-seed', habitId: 'breakfast', from: 'mom', to: 'me', emoji: '❤️', date: getLocalDate(), createdAt: nowIso() },
@@ -207,6 +226,8 @@ export const useMomDailyStore = create<Store>()(
         set({ pairId, inviteCode, displayNames, userIds, ...(memberCount !== undefined ? { pairMemberCount: memberCount } : {}), ...(activeActor ? { activeActor } : {}) }),
       setPairPresence: (pairPresence) => set({ pairPresence }),
       setCloudCompletions: (completions) => set({ completions }),
+      setCloudDailyMessages: (date, messages) =>
+        set((state) => ({ dailyMessages: { ...state.dailyMessages, [date]: messages } })),
       setNotification: (key, value) =>
         set((state) => ({
           notificationSettings: { ...state.notificationSettings, [key]: value },
@@ -274,6 +295,63 @@ export const useMomDailyStore = create<Store>()(
           };
         });
       },
+      saveDailyMessage: (rawContent, actor = get().activeActor) => {
+        const date = getLocalDate();
+        const content = rawContent.trim().slice(0, 80);
+        const updatedAt = nowIso();
+
+        set((state) => {
+          const messagesForDate = { ...(state.dailyMessages[date] ?? {}) };
+          if (content) {
+            messagesForDate[actor] = { content, updatedAt };
+          } else {
+            delete messagesForDate[actor];
+          }
+
+          return {
+            dailyMessages: { ...state.dailyMessages, [date]: messagesForDate },
+            lastEvent: {
+              id: makeId('message'),
+              tone: 'success',
+              message: content ? '今日寄语已留下，对方会立刻看到' : '今天的寄语已清空',
+            },
+          };
+        });
+
+        const userId = actor === 'me' ? get().userIds.me : get().userIds.mom;
+        const pairId = get().pairId;
+        const cloudReady = !get().demoMode && isSupabaseConfigured && Boolean(userId) && Boolean(pairId);
+        const payload = { userId, pairId, date, content };
+
+        if (get().isOnline && cloudReady) {
+          void syncDailyMessageToSupabase(payload);
+        } else if (!get().isOnline && cloudReady) {
+          get().addPendingSync({
+            id: makeId('queue'),
+            type: 'message',
+            payload,
+          });
+        }
+      },
+      applyRemoteDailyMessage: (actor, content, date = getLocalDate(), updatedAt = nowIso()) => {
+        set((state) => {
+          const messagesForDate = { ...(state.dailyMessages[date] ?? {}) };
+          if (content) {
+            messagesForDate[actor] = { content, updatedAt };
+          } else {
+            delete messagesForDate[actor];
+          }
+
+          const isOtherPerson = actor !== state.activeActor;
+          return {
+            dailyMessages: { ...state.dailyMessages, [date]: messagesForDate },
+            lastEvent:
+              content && isOtherPerson
+                ? { id: makeId('remote-message'), tone: 'success', message: (actor === 'mom' ? '妈妈' : '我') + '留下了今日寄语' }
+                : state.lastEvent,
+          };
+        });
+      },
       sendNudge: (habitId, actor = get().activeActor) => {
         const date = getLocalDate();
         const to: Actor = actor === 'me' ? 'mom' : 'me';
@@ -320,6 +398,12 @@ export const useMomDailyStore = create<Store>()(
       resetDemo: () =>
         set({
           completions: makeInitialCompletions(),
+          dailyMessages: {
+            [getLocalDate()]: {
+              me: { content: '今天也慢慢来，记得吃好每一顿饭。', updatedAt: nowIso() },
+              mom: { content: '好呀，我们一起把今天过好。', updatedAt: nowIso() },
+            },
+          },
           nudges: [],
           reactions: [],
           pendingSync: [],
@@ -329,7 +413,7 @@ export const useMomDailyStore = create<Store>()(
     {
       name: 'momdaily-local-state',
       storage: createJSONStorage(() => localStorage),
-      version: 4,
+       version: 5,
       migrate: (persisted) => {
         const persistedState = persisted as Partial<Store> | undefined;
         const hasLegacyDemoData = persistedState?.demoMode === true || persistedState?.pairId === DEMO_PAIR_ID;

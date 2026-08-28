@@ -9,6 +9,13 @@ export type CompletionSyncPayload = {
   completed: boolean;
 };
 
+export type DailyMessageSyncPayload = {
+  userId: string;
+  pairId: string;
+  date: string;
+  content: string;
+};
+
 export const syncCompletionToSupabase = async (payload: CompletionSyncPayload) => {
   if (!supabase || !isSupabaseConfigured) return false;
 
@@ -35,6 +42,34 @@ export const syncCompletionToSupabase = async (payload: CompletionSyncPayload) =
     .eq('user_id', payload.userId)
     .eq('date', payload.date);
   if (error) console.warn('[MomDaily] completion delete failed', error.message);
+  return !error;
+};
+
+export const syncDailyMessageToSupabase = async (payload: DailyMessageSyncPayload) => {
+  if (!supabase || !isSupabaseConfigured) return false;
+
+  if (payload.content) {
+    const { error } = await supabase.from('daily_messages').upsert(
+      {
+        pair_id: payload.pairId,
+        user_id: payload.userId,
+        date: payload.date,
+        content: payload.content,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'pair_id,user_id,date' },
+    );
+    if (error) console.warn('[MomDaily] daily message sync failed', error.message);
+    return !error;
+  }
+
+  const { error } = await supabase
+    .from('daily_messages')
+    .delete()
+    .eq('pair_id', payload.pairId)
+    .eq('user_id', payload.userId)
+    .eq('date', payload.date);
+  if (error) console.warn('[MomDaily] daily message delete failed', error.message);
   return !error;
 };
 
@@ -66,7 +101,7 @@ export const syncReactionToSupabase = async (reaction: Pick<Reaction, 'habitId' 
 };
 
 export const flushPendingSync = async (
-  operations: Array<{ id: string; type: 'completion' | 'nudge' | 'reaction'; payload: Record<string, string | boolean> }>,
+  operations: Array<{ id: string; type: 'completion' | 'nudge' | 'reaction' | 'message'; payload: Record<string, string | boolean> }>,
 ) => {
   if (!supabase || !isSupabaseConfigured) return [];
 
@@ -88,13 +123,20 @@ export const flushPendingSync = async (
         String(operation.payload.toUser),
         String(operation.payload.pairId),
       );
-    } else {
+    } else if (operation.type === 'reaction') {
       synced = await syncReactionToSupabase(
         { habitId: String(operation.payload.habitId), emoji: String(operation.payload.emoji), date: String(operation.payload.date) },
         String(operation.payload.fromUser),
         String(operation.payload.toUser),
         String(operation.payload.pairId),
       );
+    } else {
+      synced = await syncDailyMessageToSupabase({
+        userId: String(operation.payload.userId),
+        pairId: String(operation.payload.pairId),
+        date: String(operation.payload.date),
+        content: String(operation.payload.content),
+      });
     }
     if (synced) syncedIds.push(operation.id);
   }

@@ -5,6 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions,
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DailyHabitCard } from '@/components/DailyHabitCard';
+import { DailyMessageCard } from '@/components/DailyMessageCard';
 import { FeedbackToast } from '@/components/FeedbackToast';
 import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { ReactionPicker } from '@/components/ReactionPicker';
@@ -28,6 +29,7 @@ export default function TodayScreen() {
   const { width } = useWindowDimensions();
   const date = useLocalDate();
   const completions = useMomDailyStore((state) => state.completions);
+  const dailyMessages = useMomDailyStore((state) => state.dailyMessages);
   const activeActor = useMomDailyStore((state) => state.activeActor);
   const demoMode = useMomDailyStore((state) => state.demoMode);
   const displayNames = useMomDailyStore((state) => state.displayNames);
@@ -38,6 +40,7 @@ export default function TodayScreen() {
   const toggleCompletion = useMomDailyStore((state) => state.toggleCompletion);
   const sendNudge = useMomDailyStore((state) => state.sendNudge);
   const addReaction = useMomDailyStore((state) => state.addReaction);
+  const saveDailyMessage = useMomDailyStore((state) => state.saveDailyMessage);
   const [reactionHabit, setReactionHabit] = useState<Habit | null>(null);
 
   const summary = useMemo(() => getDaySummary(completions, date), [completions, date]);
@@ -116,6 +119,15 @@ export default function TodayScreen() {
 
           <View style={styles.streakSpacing}>
             <StreakBadge current={currentStreak} longest={longestStreak} />
+          </View>
+
+          <View style={styles.messageSpacing}>
+            <DailyMessageCard
+              messages={dailyMessages[date] ?? {}}
+              activeActor={activeActor}
+              displayNames={displayNames}
+              onSave={saveDailyMessage}
+            />
           </View>
 
           <View style={styles.listHeader}>
@@ -234,7 +246,8 @@ const styles = StyleSheet.create({
   barTrack: { height: 6, borderRadius: 6, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 6 },
   progressDivider: { width: 1, height: 30, marginHorizontal: 13 },
-  streakSpacing: { marginTop: 13, marginBottom: 25 },
+  streakSpacing: { marginTop: 13, marginBottom: 13 },
+  messageSpacing: { marginBottom: 25 },
   listHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { fontSize: 19, fontWeight: '900', letterSpacing: -0.2 },
   sectionSub: { fontSize: 11, fontWeight: '600', marginTop: 4 },

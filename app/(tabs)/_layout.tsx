@@ -6,11 +6,13 @@ import { useCloudBootstrap } from '@/hooks/useCloudBootstrap';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { usePairPresence } from '@/hooks/usePairPresence';
 import { useRealtimeCompletions } from '@/hooks/useRealtimeCompletions';
+import { useRealtimeDailyMessages } from '@/hooks/useRealtimeDailyMessages';
 import { useSyncQueue } from '@/hooks/useSyncQueue';
 
 export default function TabLayout() {
   const { colors } = useAppTheme();
   useRealtimeCompletions();
+  useRealtimeDailyMessages();
   useCloudBootstrap();
   useNetworkStatus();
   usePairPresence();

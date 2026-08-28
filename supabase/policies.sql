@@ -65,6 +65,34 @@ create policy "pair members read daily status" on public.daily_status
 
 drop policy if exists "pair members manage daily status" on public.daily_status;
 
+drop policy if exists "pair members read daily messages" on public.daily_messages;
+create policy "pair members read daily messages" on public.daily_messages
+  for select using (public.is_pair_member(pair_id));
+
+drop policy if exists "pair members write own daily messages" on public.daily_messages;
+create policy "pair members write own daily messages" on public.daily_messages
+  for insert with check (
+    user_id = auth.uid()
+    and public.is_pair_member(pair_id)
+  );
+
+drop policy if exists "pair members update own daily messages" on public.daily_messages;
+create policy "pair members update own daily messages" on public.daily_messages
+  for update using (
+    user_id = auth.uid()
+    and public.is_pair_member(pair_id)
+  ) with check (
+    user_id = auth.uid()
+    and public.is_pair_member(pair_id)
+  );
+
+drop policy if exists "pair members delete own daily messages" on public.daily_messages;
+create policy "pair members delete own daily messages" on public.daily_messages
+  for delete using (
+    user_id = auth.uid()
+    and public.is_pair_member(pair_id)
+  );
+
 drop policy if exists "pair members read reactions" on public.reactions;
 create policy "pair members read reactions" on public.reactions
   for select using (public.is_pair_member(pair_id));
