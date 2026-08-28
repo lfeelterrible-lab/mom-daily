@@ -277,6 +277,7 @@ export default function FamilyScreen() {
                 </View>
                 {identityError ? <Text style={[styles.identityError, { color: colors.accent }]}>{identityError}</Text> : null}
                 {identityMessage ? <Text style={[styles.identityMessage, { color: colors.success }]}>{identityMessage}</Text> : null}
+                <Text style={[styles.identityHint, { color: colors.inkMuted }]}>点错了不需要重新绑定，直接点另一项即可切换。</Text>
               </View>
             </>
           ) : null}
@@ -516,6 +517,7 @@ const styles = StyleSheet.create({
   identityChoiceText: { fontSize: 11, fontWeight: '900' },
   identityError: { fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 9 },
   identityMessage: { fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 9 },
+  identityHint: { fontSize: 10, lineHeight: 15, fontWeight: '600', marginTop: 9 },
   inviteCard: { borderWidth: 1, borderRadius: 21, padding: 15, marginTop: 13 },
   inviteHeader: { flexDirection: 'row', alignItems: 'center' },
   inviteIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

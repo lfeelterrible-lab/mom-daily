@@ -136,14 +136,24 @@ export default function OnboardingScreen() {
   const iconName = pageData.icon === 'sparkle' ? 'sparkles-outline' : pageData.icon === 'link' ? 'link-outline' : 'key-outline';
   const identityPicker = (
     <View style={styles.identityPicker}>
-      <Text style={[styles.identityLabel, { color: colors.inkMuted }]}>先选择你的身份</Text>
+      <View style={styles.identityHeader}>
+        <Text style={[styles.identityLabel, { color: colors.inkMuted }]}>先选择你的身份</Text>
+        {selectedActor ? (
+          <Pressable
+            onPress={() => { setSelectedActor(null); setSetupError(''); }}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.clearIdentity, { color: colors.accent }]}>取消选择</Text>
+          </Pressable>
+        ) : null}
+      </View>
       <View style={styles.identityOptions}>
         {(['me', 'mom'] as Actor[]).map((actor) => {
           const selected = selectedActor === actor;
           return (
             <Pressable
               key={actor}
-              onPress={() => { setSelectedActor(actor); setSetupError(''); }}
+              onPress={() => { setSelectedActor(selected ? null : actor); setSetupError(''); }}
               accessibilityRole="button"
               style={[styles.identityOption, { backgroundColor: selected ? colors.surfaceGreen : colors.surface, borderColor: selected ? colors.success : colors.line }]}
             >
@@ -408,7 +418,9 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   identityPicker: { gap: 8 },
+  identityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3 },
   identityLabel: { fontSize: 11, fontWeight: '800', paddingHorizontal: 3 },
+  clearIdentity: { fontSize: 11, fontWeight: '900' },
   identityOptions: { flexDirection: 'row', gap: 9 },
   identityOption: { flex: 1, height: 46, borderRadius: 15, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   identityEmoji: { fontSize: 17 },
