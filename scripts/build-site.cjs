@@ -29,6 +29,7 @@ if (result.status !== 0) {
 fs.mkdirSync(clientDir, { recursive: true });
 fs.mkdirSync(serverDir, { recursive: true });
 fs.cpSync(exportDir, clientDir, { recursive: true });
+fs.writeFileSync(path.join(clientDir, '.nojekyll'), '');
 fs.copyFileSync(path.join(__dirname, 'site-worker.mjs'), path.join(serverDir, 'index.js'));
 
 console.log(`MomDaily site output ready at ${distDir}`);

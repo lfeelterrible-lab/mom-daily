@@ -26,8 +26,8 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta property="og:type" content="website" />
         <meta property="og:title" content="母子每日活动" />
         <meta property="og:description" content="我和妈妈的双人日常打卡，一起完成，一起留下记录。" />
-        <meta property="og:url" content="https://momdaily.smoky-mint-8739.chatgpt.site/" />
-        <meta property="og:image" content="https://momdaily.smoky-mint-8739.chatgpt.site/favicon-momdaily.png" />
+        <meta property="og:url" content={`${siteUrl}/`} />
+        <meta property="og:image" content={`${siteUrl}/favicon-momdaily.png`} />
         <meta name="twitter:card" content="summary" />
         <meta name="twitter:title" content="母子每日活动" />
         <meta name="twitter:description" content="我和妈妈的双人日常打卡，一起完成，一起留下记录。" />
@@ -46,3 +46,5 @@ body {
     background-color: #171D1A;
   }
 }`;
+
+const siteUrl = (process.env.EXPO_PUBLIC_SITE_URL ?? 'https://momdaily.smoky-mint-8739.chatgpt.site').replace(/\/+$/, '');

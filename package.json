@@ -39,6 +39,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "build": "npm run build:site",
     "typecheck": "tsc --noEmit",
     "generate:icon": "node scripts/generate-icon.cjs",
     "build:site": "node scripts/build-site.cjs"
