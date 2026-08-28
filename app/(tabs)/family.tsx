@@ -11,7 +11,7 @@ import { AppMark } from '@/components/AppMark';
 import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { defaultHabits } from '@/constants/habits';
 import { ensureSession } from '@/features/auth/auth';
-import { getPairMembers, joinPair, type PairMember } from '@/features/pairing/pairing';
+import { actorDisplayName, getPairMembers, joinPair, mapPairMembers, updatePairIdentity, type PairMember } from '@/features/pairing/pairing';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { usePair } from '@/hooks/usePair';
 import { DEMO_ME_ID, DEMO_MOM_ID, DEMO_PAIR_ID, isSupabaseConfigured } from '@/lib/supabase';
@@ -45,6 +45,9 @@ export default function FamilyScreen() {
   const [joinError, setJoinError] = useState('');
   const [joinMessage, setJoinMessage] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const [identityError, setIdentityError] = useState('');
+  const [identityMessage, setIdentityMessage] = useState('');
+  const [isUpdatingIdentity, setIsUpdatingIdentity] = useState(false);
   const pairConnected = demoMode || (pairMemberCount >= 2 && Boolean(userIds.me) && Boolean(userIds.mom));
 
   useEffect(() => {
@@ -119,19 +122,70 @@ export default function FamilyScreen() {
       return;
     }
     const members = (membersResult.data ?? []) as PairMember[];
-    const other = members.find((member) => member.id !== currentUserId);
-    const current = members.find((member) => member.id === currentUserId);
+    const connection = mapPairMembers(members, currentUserId, 'mom');
     setPairConnection({
       pairId: pair.id,
       inviteCode: pair.invite_code ?? normalizedCode,
-      displayNames: { me: other?.display_name ?? '我', mom: current?.display_name ?? '妈妈' },
-      userIds: { me: other?.id ?? '', mom: currentUserId },
       memberCount: members.length,
-      activeActor: 'mom',
+      ...connection,
     });
     setJoinInviteCode('');
     setJoinMessage(members.length >= 2 ? '我们连接成功啦' : '邀请码已记录，等待另一位成员加入');
     setIsJoining(false);
+  };
+
+  const chooseIdentity = async (actor: Actor) => {
+    if (!pairId || demoMode) return;
+    setIdentityError('');
+    setIdentityMessage('');
+    setIsUpdatingIdentity(true);
+
+    const sessionResult = await ensureSession();
+    const currentUserId = sessionResult.data.session?.user.id;
+    if (sessionResult.error || !currentUserId) {
+      setIdentityError('暂时无法确认你的身份，请稍后再试');
+      setIsUpdatingIdentity(false);
+      return;
+    }
+
+    const membersResult = await getPairMembers(pairId);
+    const members = (membersResult.data ?? []) as PairMember[];
+    if (membersResult.error) {
+      setIdentityError('暂时读取不到家庭成员，请稍后再试');
+      setIsUpdatingIdentity(false);
+      return;
+    }
+    const other = members.find((member) => member.id !== currentUserId);
+    const targetName = actorDisplayName(actor);
+    if (other?.display_name === targetName) {
+      setIdentityError('对方已经选择“' + targetName + '”，请各自选择不同身份');
+      setIsUpdatingIdentity(false);
+      return;
+    }
+
+    const updateResult = await updatePairIdentity(actor);
+    if (updateResult.error) {
+      setIdentityError(updateResult.error.message ?? '身份设置失败，请稍后重试');
+      setIsUpdatingIdentity(false);
+      return;
+    }
+
+    const latestMembersResult = await getPairMembers(pairId);
+    const latestMembers = (latestMembersResult.data ?? []) as PairMember[];
+    if (latestMembersResult.error) {
+      setIdentityError('身份已保存，但暂时无法刷新显示');
+      setIsUpdatingIdentity(false);
+      return;
+    }
+    const connection = mapPairMembers(latestMembers, currentUserId, actor);
+    setPairConnection({
+      pairId,
+      inviteCode,
+      memberCount: latestMembers.length,
+      ...connection,
+    });
+    setIdentityMessage('已设置为“' + targetName + '”');
+    setIsUpdatingIdentity(false);
   };
 
   return (
@@ -194,6 +248,38 @@ export default function FamilyScreen() {
             </View>
             <Ionicons name="chevron-forward" color={colors.inkMuted} size={17} />
           </View>
+
+          {!demoMode && pairId ? (
+            <>
+              <View style={styles.sectionLabel}>
+                <Text style={[styles.sectionTitle, { color: colors.ink }]}>我的身份</Text>
+                <Text style={[styles.sectionSubtitle, { color: colors.inkMuted }]}>两个人各自选一次，避免显示为“我 + 我”</Text>
+              </View>
+              <View style={[styles.identityCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+                <Text style={[styles.identityPrompt, { color: colors.ink }]}>在这个家庭里，我是：</Text>
+                <View style={styles.identityChoiceRow}>
+                  {(['me', 'mom'] as Actor[]).map((actor) => {
+                    const selected = activeActor === actor;
+                    return (
+                      <Pressable
+                        key={actor}
+                        disabled={isUpdatingIdentity}
+                        onPress={() => void chooseIdentity(actor)}
+                        accessibilityRole="button"
+                        style={[styles.identityChoice, { backgroundColor: selected ? colors.surfaceGreen : colors.surfaceMuted, borderColor: selected ? colors.success : 'transparent', opacity: isUpdatingIdentity ? 0.7 : 1 }]}
+                      >
+                        <Text style={styles.identityChoiceEmoji}>{actor === 'me' ? '👦' : '👩'}</Text>
+                        <Text style={[styles.identityChoiceText, { color: colors.ink }]}>我是{actorDisplayName(actor)}</Text>
+                        {selected ? <Ionicons name="checkmark-circle" color={colors.success} size={16} /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {identityError ? <Text style={[styles.identityError, { color: colors.accent }]}>{identityError}</Text> : null}
+                {identityMessage ? <Text style={[styles.identityMessage, { color: colors.success }]}>{identityMessage}</Text> : null}
+              </View>
+            </>
+          ) : null}
 
           <View style={[styles.inviteCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
             <View style={styles.inviteHeader}>
@@ -422,6 +508,14 @@ const styles = StyleSheet.create({
   shareCopy: { flex: 1, marginLeft: 11, gap: 3 },
   shareTitle: { fontSize: 13, fontWeight: '900' },
   shareText: { fontSize: 10, lineHeight: 15, fontWeight: '600' },
+  identityCard: { borderWidth: 1, borderRadius: 21, padding: 15 },
+  identityPrompt: { fontSize: 12, fontWeight: '900' },
+  identityChoiceRow: { flexDirection: 'row', gap: 9, marginTop: 12 },
+  identityChoice: { flex: 1, minHeight: 44, borderRadius: 13, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 8 },
+  identityChoiceEmoji: { fontSize: 17 },
+  identityChoiceText: { fontSize: 11, fontWeight: '900' },
+  identityError: { fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 9 },
+  identityMessage: { fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 9 },
   inviteCard: { borderWidth: 1, borderRadius: 21, padding: 15, marginTop: 13 },
   inviteHeader: { flexDirection: 'row', alignItems: 'center' },
   inviteIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

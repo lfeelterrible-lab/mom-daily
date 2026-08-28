@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 import { ensureSession } from '@/features/auth/auth';
-import { getPairMembers, type PairMember } from '@/features/pairing/pairing';
+import { getPairMembers, mapPairMembers, type PairMember } from '@/features/pairing/pairing';
 import { addLocalDays } from '@/lib/date';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useLocalDate } from '@/hooks/useLocalDate';
@@ -17,17 +17,6 @@ const buildCloudCompletions = (rows: Array<{ habit_id: string; user_id: string; 
     completions[row.date] = { ...(completions[row.date] ?? {}), [row.habit_id]: { ...current, [actor]: true, [timestampKey]: row.completed_at } };
   });
   return completions;
-};
-
-const connectionFromMembers = (members: PairMember[], currentUserId: string, activeActor: Actor) => {
-  const current = members.find((member) => member.id === currentUserId);
-  const other = members.find((member) => member.id !== currentUserId);
-  const me = activeActor === 'me' ? current : other;
-  const mom = activeActor === 'mom' ? current : other;
-  return {
-    displayNames: { me: me?.display_name ?? '我', mom: mom?.display_name ?? '妈妈' },
-    userIds: { me: me?.id ?? '', mom: mom?.id ?? '' },
-  };
 };
 
 export const useCloudBootstrap = () => {
@@ -58,13 +47,13 @@ export const useCloudBootstrap = () => {
       const membersResult = await getPairMembers(targetPairId);
       if (membersResult.error || cancelled) return;
       const members = (membersResult.data ?? []) as PairMember[];
-      const connection = connectionFromMembers(members, currentUserId, resolvedActor);
+      const connection = mapPairMembers(members, currentUserId, resolvedActor);
       setPairConnection({
         pairId: targetPairId,
         inviteCode: profile.invite_code ?? '',
         memberCount: members.length,
         ...connection,
-        activeActor: resolvedActor,
+        activeActor: connection.activeActor,
       });
 
       if (!memberChannel) {
@@ -86,8 +75,7 @@ export const useCloudBootstrap = () => {
                 pairId: targetPairId,
                 inviteCode: profile.invite_code ?? '',
                 memberCount: latestMembers.length,
-                ...connectionFromMembers(latestMembers, currentUserId, resolvedActor),
-                activeActor: resolvedActor,
+                ...mapPairMembers(latestMembers, currentUserId, resolvedActor),
               });
             },
           )

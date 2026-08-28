@@ -5,7 +5,7 @@ import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, StyleSheet, Te
 
 import { AppMark } from '@/components/AppMark';
 import { ensureSession } from '@/features/auth/auth';
-import { createPair, getPairMembers, joinPair, type PairMember } from '@/features/pairing/pairing';
+import { actorDisplayName, createPair, getPairMembers, joinPair, mapPairMembers, type PairMember } from '@/features/pairing/pairing';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useMomDailyStore, type Actor } from '@/store/useMomDailyStore';
@@ -39,6 +39,7 @@ export default function OnboardingScreen() {
   const setPairConnection = useMomDailyStore((state) => state.setPairConnection);
   const [page, setPage] = useState(0);
   const [setupMode, setSetupMode] = useState<'start' | 'join' | null>(null);
+  const [selectedActor, setSelectedActor] = useState<Actor | null>(null);
   const [inviteCode, setInviteCode] = useState('');
   const [setupError, setSetupError] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -51,6 +52,7 @@ export default function OnboardingScreen() {
 
   const resetSetup = () => {
     setSetupMode(null);
+    setSelectedActor(null);
     setInviteCode('');
     setSetupError('');
     setIsConnecting(false);
@@ -72,8 +74,14 @@ export default function OnboardingScreen() {
 
   const finish = async () => {
     const normalizedInviteCode = inviteCode.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const chosenActor = selectedActor;
+    if (!setupMode) return;
     if (setupMode === 'join' && normalizedInviteCode.length !== 6) {
       setSetupError('请输入 6 位邀请码');
+      return;
+    }
+    if (!chosenActor) {
+      setSetupError('请先选择你的身份');
       return;
     }
 
@@ -82,7 +90,7 @@ export default function OnboardingScreen() {
       return;
     }
 
-    if (setupMode && !demoMode && isSupabaseConfigured) {
+    if (!demoMode && isSupabaseConfigured) {
       setSetupError('');
       setIsConnecting(true);
       const sessionResult = await ensureSession();
@@ -93,7 +101,9 @@ export default function OnboardingScreen() {
         return;
       }
 
-      const pairResult = setupMode === 'start' ? await createPair('我') : await joinPair(normalizedInviteCode, '妈妈');
+      const pairResult = setupMode === 'start'
+        ? await createPair(actorDisplayName(chosenActor))
+        : await joinPair(normalizedInviteCode, actorDisplayName(chosenActor));
       const pair = pairResult.data as { id?: string; invite_code?: string } | null;
       if (pairResult.error || !pair?.id) {
         setSetupError(pairResult.error?.message ?? '邀请码无效或家庭已经满员');
@@ -108,20 +118,12 @@ export default function OnboardingScreen() {
         return;
       }
       const members = (membersResult.data ?? []) as PairMember[];
-      const other = members.find((member) => member.id !== currentUserId);
-      const current = members.find((member) => member.id === currentUserId);
-      const activeActor: Actor = setupMode === 'start' ? 'me' : 'mom';
+      const connection = mapPairMembers(members, currentUserId, chosenActor);
       setPairConnection({
         pairId: pair.id,
         inviteCode: pair.invite_code ?? normalizedInviteCode,
-        displayNames: activeActor === 'me'
-          ? { me: current?.display_name ?? '我', mom: other?.display_name ?? '妈妈' }
-          : { me: other?.display_name ?? '我', mom: current?.display_name ?? '妈妈' },
-        userIds: activeActor === 'me'
-          ? { me: currentUserId, mom: other?.id ?? '' }
-          : { me: other?.id ?? '', mom: currentUserId },
         memberCount: members.length,
-        activeActor,
+        ...connection,
       });
       setIsConnecting(false);
     }
@@ -132,6 +134,28 @@ export default function OnboardingScreen() {
 
   const pageData = pages[page];
   const iconName = pageData.icon === 'sparkle' ? 'sparkles-outline' : pageData.icon === 'link' ? 'link-outline' : 'key-outline';
+  const identityPicker = (
+    <View style={styles.identityPicker}>
+      <Text style={[styles.identityLabel, { color: colors.inkMuted }]}>先选择你的身份</Text>
+      <View style={styles.identityOptions}>
+        {(['me', 'mom'] as Actor[]).map((actor) => {
+          const selected = selectedActor === actor;
+          return (
+            <Pressable
+              key={actor}
+              onPress={() => { setSelectedActor(actor); setSetupError(''); }}
+              accessibilityRole="button"
+              style={[styles.identityOption, { backgroundColor: selected ? colors.surfaceGreen : colors.surface, borderColor: selected ? colors.success : colors.line }]}
+            >
+              <Text style={styles.identityEmoji}>{actor === 'me' ? '👦' : '👩'}</Text>
+              <Text style={[styles.identityText, { color: colors.ink }]}>{actorDisplayName(actor)}</Text>
+              {selected ? <Ionicons name="checkmark-circle" color={colors.success} size={16} /> : null}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -169,6 +193,7 @@ export default function OnboardingScreen() {
                 </>
               ) : setupMode === 'start' ? (
                 <>
+                  {identityPicker}
                   <View style={[styles.codeHint, { backgroundColor: colors.surface }]}>
                     <Text style={[styles.codeHintLabel, { color: colors.inkMuted }]}>你的家庭邀请码</Text>
                     <Text style={[styles.codeHintValue, { color: colors.ink }]}>创建后生成</Text>
@@ -181,8 +206,9 @@ export default function OnboardingScreen() {
                 </>
               ) : (
                 <>
+                  {identityPicker}
                   <View style={styles.setupHeading}>
-                    <Text style={[styles.setupHeadingText, { color: colors.ink }]}>连接妈妈的家庭</Text>
+                    <Text style={[styles.setupHeadingText, { color: colors.ink }]}>输入对方的邀请码</Text>
                     <Pressable onPress={resetSetup} accessibilityRole="button">
                       <Text style={[styles.changeMode, { color: colors.accent }]}>重新选择</Text>
                     </Pressable>
@@ -381,6 +407,12 @@ const styles = StyleSheet.create({
     gap: 3,
     marginBottom: 1,
   },
+  identityPicker: { gap: 8 },
+  identityLabel: { fontSize: 11, fontWeight: '800', paddingHorizontal: 3 },
+  identityOptions: { flexDirection: 'row', gap: 9 },
+  identityOption: { flex: 1, height: 46, borderRadius: 15, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  identityEmoji: { fontSize: 17 },
+  identityText: { fontSize: 12, fontWeight: '900' },
   codeHintLabel: {
     fontSize: 11,
     fontWeight: '700',

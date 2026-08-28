@@ -206,12 +206,18 @@ begin
   if auth.uid() is null then
     raise exception 'Authentication required';
   end if;
+  if coalesce(input_display_name, '') not in ('我', '妈妈') then
+    raise exception 'Choose either 我 or 妈妈';
+  end if;
 
   generated_code := upper(substr(encode(extensions.gen_random_bytes(5), 'hex'), 1, 6));
   insert into public.pairs (invite_code) values (generated_code) returning * into created_pair;
   insert into public.profiles (id, display_name, pair_id, invite_code)
-  values (auth.uid(), coalesce(nullif(input_display_name, ''), '我'), created_pair.id, generated_code)
-  on conflict (id) do update set pair_id = excluded.pair_id, invite_code = excluded.invite_code;
+  values (auth.uid(), input_display_name, created_pair.id, generated_code)
+  on conflict (id) do update set
+    display_name = excluded.display_name,
+    pair_id = excluded.pair_id,
+    invite_code = excluded.invite_code;
   perform public.seed_default_habits(created_pair.id);
   return created_pair;
 end;
@@ -240,12 +246,63 @@ begin
   if member_count >= 2 then
     raise exception 'This pair is already full';
   end if;
+  if coalesce(input_display_name, '') not in ('我', '妈妈') then
+    raise exception 'Choose either 我 or 妈妈';
+  end if;
+  if exists (
+    select 1 from public.profiles
+    where pair_id = target_pair.id
+      and display_name = input_display_name
+  ) then
+    raise exception 'This identity is already selected';
+  end if;
 
   insert into public.profiles (id, display_name, pair_id, invite_code)
-  values (auth.uid(), coalesce(nullif(input_display_name, ''), '妈妈'), target_pair.id, target_pair.invite_code)
-  on conflict (id) do update set pair_id = excluded.pair_id;
+  values (auth.uid(), input_display_name, target_pair.id, target_pair.invite_code)
+  on conflict (id) do update set
+    display_name = excluded.display_name,
+    pair_id = excluded.pair_id,
+    invite_code = excluded.invite_code;
   perform public.seed_default_habits(target_pair.id);
   return target_pair;
+end;
+$$;
+
+create or replace function public.set_pair_identity(input_display_name text)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_profile public.profiles;
+  updated_profile public.profiles;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+  if coalesce(input_display_name, '') not in ('我', '妈妈') then
+    raise exception 'Choose either 我 or 妈妈';
+  end if;
+
+  select * into current_profile from public.profiles where id = auth.uid() for update;
+  if current_profile.pair_id is null then
+    raise exception 'Pair required';
+  end if;
+  if exists (
+    select 1 from public.profiles
+    where pair_id = current_profile.pair_id
+      and id <> auth.uid()
+      and display_name = input_display_name
+  ) then
+    raise exception 'This identity is already selected';
+  end if;
+
+  update public.profiles
+  set display_name = input_display_name
+  where id = auth.uid()
+  returning * into updated_profile;
+  return updated_profile;
 end;
 $$;
 
