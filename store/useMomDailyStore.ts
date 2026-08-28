@@ -146,19 +146,21 @@ const shiftDate = (date: string, amount: number): string => {
   return next.getFullYear() + '-' + String(next.getMonth() + 1).padStart(2, '0') + '-' + String(next.getDate()).padStart(2, '0');
 };
 
+const demoModeEnabled = process.env.EXPO_PUBLIC_DEV_DEMO_MODE === 'true';
+
 const initialState = {
   hydrated: false,
-  demoMode: process.env.EXPO_PUBLIC_DEV_DEMO_MODE !== 'false' || !isSupabaseConfigured,
+  demoMode: demoModeEnabled,
   activeActor: 'me' as Actor,
   themeMode: 'light' as ThemeMode,
   hasSeenOnboarding: false,
   isOnline: true,
   offlineOverride: false,
-  pairId: 'demo-pair-momdaily',
-  inviteCode: 'MOM826',
+  pairId: demoModeEnabled ? 'demo-pair-momdaily' : '',
+  inviteCode: demoModeEnabled ? 'MOM826' : '',
   displayNames: { me: '我', mom: '妈妈' },
-  userIds: { me: DEMO_ME_ID, mom: DEMO_MOM_ID },
-  completions: process.env.EXPO_PUBLIC_DEV_DEMO_MODE !== 'false' || !isSupabaseConfigured ? makeInitialCompletions() : {},
+  userIds: demoModeEnabled ? { me: DEMO_ME_ID, mom: DEMO_MOM_ID } : { me: '', mom: '' },
+  completions: demoModeEnabled ? makeInitialCompletions() : {},
   nudges: [] as Nudge[],
   reactions: [
     { id: 'reaction-seed', habitId: 'breakfast', from: 'mom', to: 'me', emoji: '❤️', date: getLocalDate(), createdAt: nowIso() },
@@ -308,7 +310,8 @@ export const useMomDailyStore = create<Store>()(
     {
       name: 'momdaily-local-state',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
+      migrate: () => initialState,
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
       },

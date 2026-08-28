@@ -71,7 +71,7 @@ export default function FamilyScreen() {
     setJoinMessage('');
     setIsJoining(true);
 
-    if (demoMode || !isSupabaseConfigured) {
+    if (demoMode) {
       setPairConnection({
         pairId: pairId || DEMO_PAIR_ID,
         inviteCode: normalizedCode,
@@ -81,6 +81,12 @@ export default function FamilyScreen() {
       });
       setJoinInviteCode('');
       setJoinMessage('演示绑定成功，可以切换到妈妈身份测试啦');
+      setIsJoining(false);
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setJoinError('云端服务还没有连接，暂时不能绑定邀请码');
       setIsJoining(false);
       return;
     }
@@ -343,7 +349,7 @@ export default function FamilyScreen() {
           <View style={styles.backendNote}>
             <Ionicons name={isSupabaseConfigured ? 'cloud-done-outline' : 'server-outline'} color={isSupabaseConfigured ? colors.success : colors.inkSoft} size={15} />
             <Text style={[styles.backendText, { color: colors.inkMuted }]}>
-              {isSupabaseConfigured ? 'Supabase 已连接 · 私密同步已开启' : '演示数据保存在本机 · 配置 Supabase 后可跨设备同步'}
+              {isSupabaseConfigured ? 'Supabase 已连接 · 私密同步已开启' : '云端尚未配置 · 暂不能跨设备同步'}
             </Text>
           </View>
 
@@ -351,7 +357,7 @@ export default function FamilyScreen() {
             <Ionicons name="shield-checkmark-outline" color={colors.success} size={17} />
             <View style={styles.privacyCopy}>
               <Text style={[styles.privacyTitle, { color: colors.ink }]}>这是一个私人空间</Text>
-              <Text style={[styles.privacyText, { color: colors.inkMuted }]}>只有配对的两个账号可以看到日活记录。{isSupabaseConfigured ? '已连接 Supabase。' : 'Demo Mode 未连接云端。'}</Text>
+              <Text style={[styles.privacyText, { color: colors.inkMuted }]}>只有配对的两个账号可以看到日活记录。{isSupabaseConfigured ? '已连接 Supabase。' : '请完成云端配置后再开始。'}</Text>
             </View>
             <Ionicons name="lock-closed-outline" color={colors.inkSoft} size={15} />
           </View>

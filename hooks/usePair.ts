@@ -5,11 +5,11 @@ export const usePair = () => {
   const pairId = useMomDailyStore((state) => state.pairId);
   const inviteCode = useMomDailyStore((state) => state.inviteCode);
   const displayNames = useMomDailyStore((state) => state.displayNames);
+  const demoMode = useMomDailyStore((state) => state.demoMode);
   return {
-    pairId: pairId || DEMO_PAIR_ID,
-    inviteCode,
+    pairId: pairId || (demoMode ? DEMO_PAIR_ID : ''),
+    inviteCode: inviteCode || (demoMode ? 'MOM826' : ''),
     displayNames,
     isPaired: Boolean(pairId),
   };
 };
-

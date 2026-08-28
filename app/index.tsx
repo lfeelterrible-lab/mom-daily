@@ -77,6 +77,11 @@ export default function OnboardingScreen() {
       return;
     }
 
+    if (!demoMode && !isSupabaseConfigured) {
+      setSetupError('云端服务还没有连接，请先完成 Supabase 配置');
+      return;
+    }
+
     if (setupMode && !demoMode && isSupabaseConfigured) {
       setSetupError('');
       setIsConnecting(true);
