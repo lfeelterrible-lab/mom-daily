@@ -14,9 +14,12 @@ create table if not exists public.profiles (
   display_name text not null default '我',
   avatar_url text,
   pair_id uuid references public.pairs(id) on delete set null,
-  invite_code text unique,
+  invite_code text,
   created_at timestamptz not null default now()
 );
+
+-- The invite belongs to the pair, so both profiles may share it.
+alter table public.profiles drop constraint if exists profiles_invite_code_key;
 
 create table if not exists public.habits (
   id text not null,
