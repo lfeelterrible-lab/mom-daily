@@ -8,7 +8,7 @@ type Props = {
   actor: Actor;
   size?: number;
   showStatus?: boolean;
-  status?: 'online' | 'waiting';
+  status?: 'online' | 'offline';
 };
 
 const avatarContent: Record<Actor, { emoji: string; name: string }> = {
@@ -43,7 +43,7 @@ export function Avatar({ actor, size = 42, showStatus = false, status = 'online'
           style={[
             styles.status,
             {
-              backgroundColor: status === 'online' ? colors.success : colors.sun,
+              backgroundColor: status === 'online' ? colors.success : colors.inkSoft,
               borderColor: colors.surface,
             },
           ]}

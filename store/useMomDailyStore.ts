@@ -50,6 +50,11 @@ export type ActivityEvent = {
   tone: 'success' | 'neutral';
 };
 
+export type PairPresence = {
+  me: boolean;
+  mom: boolean;
+};
+
 type Store = {
   hydrated: boolean;
   demoMode: boolean;
@@ -63,6 +68,7 @@ type Store = {
   pairMemberCount: number;
   displayNames: { me: string; mom: string };
   userIds: { me: string; mom: string };
+  pairPresence: PairPresence;
   completions: CompletionByDate;
   nudges: Nudge[];
   reactions: Reaction[];
@@ -81,6 +87,7 @@ type Store = {
   setOnline: (online: boolean) => void;
   setDetectedOnline: (online: boolean) => void;
   setPairConnection: (connection: { pairId: string; inviteCode: string; displayNames: { me: string; mom: string }; userIds: { me: string; mom: string }; memberCount?: number; activeActor?: Actor }) => void;
+  setPairPresence: (presence: PairPresence) => void;
   setCloudCompletions: (completions: CompletionByDate) => void;
   setNotification: (key: 'enabled' | 'morningReminder' | 'eveningReminder', value: boolean) => void;
   toggleCompletion: (habitId: string, actor?: Actor) => void;
@@ -170,6 +177,7 @@ const initialState = {
   pairMemberCount: demoModeEnabled ? 2 : 0,
   displayNames: { me: '我', mom: '妈妈' },
   userIds: demoModeEnabled ? { me: DEMO_ME_ID, mom: DEMO_MOM_ID } : { me: '', mom: '' },
+  pairPresence: demoModeEnabled ? { me: true, mom: true } : { me: false, mom: false },
   completions: demoModeEnabled ? makeInitialCompletions() : {},
   nudges: [] as Nudge[],
   reactions: [
@@ -197,6 +205,7 @@ export const useMomDailyStore = create<Store>()(
       setDetectedOnline: (isOnline) => set((state) => (state.offlineOverride ? state : { isOnline })),
       setPairConnection: ({ pairId, inviteCode, displayNames, userIds, memberCount, activeActor }) =>
         set({ pairId, inviteCode, displayNames, userIds, ...(memberCount !== undefined ? { pairMemberCount: memberCount } : {}), ...(activeActor ? { activeActor } : {}) }),
+      setPairPresence: (pairPresence) => set({ pairPresence }),
       setCloudCompletions: (completions) => set({ completions }),
       setNotification: (key, value) =>
         set((state) => ({

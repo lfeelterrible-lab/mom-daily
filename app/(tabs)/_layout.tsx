@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useCloudBootstrap } from '@/hooks/useCloudBootstrap';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { usePairPresence } from '@/hooks/usePairPresence';
 import { useRealtimeCompletions } from '@/hooks/useRealtimeCompletions';
 import { useSyncQueue } from '@/hooks/useSyncQueue';
 
@@ -12,6 +13,7 @@ export default function TabLayout() {
   useRealtimeCompletions();
   useCloudBootstrap();
   useNetworkStatus();
+  usePairPresence();
   useSyncQueue();
 
   return (

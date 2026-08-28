@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DailyHabitCard } from '@/components/DailyHabitCard';
 import { FeedbackToast } from '@/components/FeedbackToast';
+import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { ReactionPicker } from '@/components/ReactionPicker';
 import { SharedProgressRing } from '@/components/SharedProgressRing';
 import { StreakBadge } from '@/components/StreakBadge';
@@ -29,6 +30,8 @@ export default function TodayScreen() {
   const completions = useMomDailyStore((state) => state.completions);
   const activeActor = useMomDailyStore((state) => state.activeActor);
   const demoMode = useMomDailyStore((state) => state.demoMode);
+  const displayNames = useMomDailyStore((state) => state.displayNames);
+  const pairPresence = useMomDailyStore((state) => state.pairPresence);
   const isOnline = useMomDailyStore((state) => state.isOnline);
   const lastEvent = useMomDailyStore((state) => state.lastEvent);
   const clearEvent = useMomDailyStore((state) => state.clearEvent);
@@ -94,7 +97,8 @@ export default function TodayScreen() {
                   <View style={[styles.avatarOverlap, { backgroundColor: colors.surfaceGreen }]}><Text style={styles.avatarEmoji}>👦</Text></View>
                   <View style={[styles.avatarOverlap, styles.momAvatar, { backgroundColor: colors.sunSoft }]}><Text style={styles.avatarEmoji}>👩</Text></View>
                 </View>
-                <Text style={[styles.pairTitle, { color: colors.ink }]}>我 + 妈妈</Text>
+                <Text style={[styles.pairTitle, { color: colors.ink }]}>{displayNames.me} + {displayNames.mom}</Text>
+                <PairPresenceBar meLabel={displayNames.me} momLabel={displayNames.mom} meOnline={pairPresence.me} momOnline={pairPresence.mom} />
                 <Text style={[styles.pairCopy, { color: colors.inkMuted }]}>今天的小事，正在变成我们的记录。</Text>
                 <View style={[styles.sharedChip, { backgroundColor: colors.accentSoft }]}>
                   <Ionicons name="sparkles-outline" color={colors.accent} size={13} />

@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { FeedbackToast } from '@/components/FeedbackToast';
 import { AppMark } from '@/components/AppMark';
+import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { defaultHabits } from '@/constants/habits';
 import { ensureSession } from '@/features/auth/auth';
 import { getPairMembers, joinPair, type PairMember } from '@/features/pairing/pairing';
@@ -23,6 +24,7 @@ export default function FamilyScreen() {
   const pairId = useMomDailyStore((state) => state.pairId);
   const pairMemberCount = useMomDailyStore((state) => state.pairMemberCount);
   const userIds = useMomDailyStore((state) => state.userIds);
+  const pairPresence = useMomDailyStore((state) => state.pairPresence);
   const setPairConnection = useMomDailyStore((state) => state.setPairConnection);
   const activeActor = useMomDailyStore((state) => state.activeActor);
   const setActiveActor = useMomDailyStore((state) => state.setActiveActor);
@@ -158,7 +160,7 @@ export default function FamilyScreen() {
             </View>
             <View style={styles.pairPeople}>
               <View style={styles.pairPerson}>
-                <Avatar actor="me" size={57} showStatus />
+                <Avatar actor="me" size={57} showStatus status={pairPresence.me ? 'online' : 'offline'} />
                 <Text style={[styles.pairName, { color: colors.white }]}>{displayNames.me}</Text>
               </View>
               <View style={styles.connection}>
@@ -167,10 +169,11 @@ export default function FamilyScreen() {
                 <View style={[styles.connectionLine, { backgroundColor: colors.accent }]} />
               </View>
               <View style={styles.pairPerson}>
-                <Avatar actor="mom" size={57} showStatus />
+                <Avatar actor="mom" size={57} showStatus status={pairPresence.mom ? 'online' : 'offline'} />
                 <Text style={[styles.pairName, { color: colors.white }]}>{displayNames.mom}</Text>
               </View>
             </View>
+            <PairPresenceBar meLabel={displayNames.me} momLabel={displayNames.mom} meOnline={pairPresence.me} momOnline={pairPresence.mom} />
             <View style={[styles.pairFoot, { borderTopColor: colors.line + '55' }]}>
               <Text style={[styles.pairFootText, { color: colors.inkSoft }]}>邀请码</Text>
               <Text style={[styles.pairCode, { color: colors.white }]}>{inviteCode}</Text>
