@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { defaultHabits } from '@/constants/habits';
 import { getLocalDate } from '@/lib/date';
-import { DEMO_ME_ID, DEMO_MOM_ID, isSupabaseConfigured } from '@/lib/supabase';
+import { DEMO_ME_ID, DEMO_MOM_ID, DEMO_PAIR_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { syncCompletionToSupabase, syncNudgeToSupabase, syncReactionToSupabase } from '@/features/realtime/sync';
 import type { ThemeMode } from '@/constants/theme';
 
@@ -318,8 +318,21 @@ export const useMomDailyStore = create<Store>()(
     {
       name: 'momdaily-local-state',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
-      migrate: () => initialState,
+      version: 3,
+      migrate: (persisted) => {
+        const persistedState = persisted as Partial<Store> | undefined;
+        const hasLegacyDemoData = persistedState?.demoMode === true || persistedState?.pairId === DEMO_PAIR_ID;
+
+        if (!demoModeEnabled && hasLegacyDemoData) {
+          return initialState;
+        }
+
+        return {
+          ...initialState,
+          ...persistedState,
+          demoMode: demoModeEnabled ? Boolean(persistedState?.demoMode ?? true) : false,
+        };
+      },
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
       },
