@@ -16,6 +16,13 @@ export const addLocalDays = (value: string, amount: number): string => {
   return getLocalDate(addDays(parseLocalDate(value), amount));
 };
 
+export const addLocalMonths = (value: string, amount: number): string => {
+  const [year, month] = value.split('-').map(Number);
+  return getLocalDate(new Date(year, month - 1 + amount, 1, 12, 0, 0, 0));
+};
+
+export const endOfLocalMonth = (value: string): string => addLocalDays(addLocalMonths(value, 1), -1);
+
 export const formatChineseDate = (value: string): string => {
   return format(parseLocalDate(value), 'yyyy年M月d日', { locale: zhCN });
 };
@@ -51,4 +58,3 @@ export const getDateRange = (endDate: string, count: number): string[] => {
 export const isToday = (value: string): boolean => value === getLocalDate();
 
 export const getDayIndex = (value: string): number => getDay(parseLocalDate(value));
-

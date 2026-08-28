@@ -8,7 +8,7 @@ import { defaultHabits } from '@/constants/habits';
 import { getCompletion, getCompletionLevel, getDaySummary } from '@/features/streak/streak';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { addLocalDays, formatChineseDate, formatMonth, getWeekDates, weekdayLong } from '@/lib/date';
+import { addLocalDays, addLocalMonths, endOfLocalMonth, formatChineseDate, formatMonth, getWeekDates, weekdayLong } from '@/lib/date';
 import { useMomDailyStore } from '@/store/useMomDailyStore';
 
 const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
@@ -18,17 +18,40 @@ export default function CalendarScreen() {
   const today = useLocalDate();
   const completions = useMomDailyStore((state) => state.completions);
   const [selectedDate, setSelectedDate] = useState(today);
-  const currentWeekStart = getWeekDates(today)[0];
-  const startDate = addLocalDays(currentWeekStart, -7 * 11);
+  const currentYear = today.slice(0, 4);
+  const calendarStartMonth = currentYear + '-01-01';
+  const calendarEndMonth = addLocalMonths(calendarStartMonth, 23);
+  const [visibleMonth, setVisibleMonth] = useState(today.slice(0, 7) + '-01');
+  const monthStart = visibleMonth;
+  const monthEnd = endOfLocalMonth(visibleMonth);
+  const gridStart = getWeekDates(monthStart)[0];
+  const gridEnd = getWeekDates(monthEnd)[6];
   const weeks = useMemo(
-    () =>
-      Array.from({ length: 12 }, (_, weekIndex) =>
-        Array.from({ length: 7 }, (_, dayIndex) => addLocalDays(startDate, weekIndex * 7 + dayIndex)),
-      ),
-    [startDate],
+    () => {
+      const result: string[][] = [];
+      let cursor = gridStart;
+      while (cursor <= gridEnd) {
+        result.push(Array.from({ length: 7 }, (_, dayIndex) => addLocalDays(cursor, dayIndex)));
+        cursor = addLocalDays(cursor, 7);
+      }
+      return result;
+    },
+    [gridEnd, gridStart],
   );
   const selectedSummary = getDaySummary(completions, selectedDate);
   const contentWidth = 540;
+  const canGoPrevious = visibleMonth > calendarStartMonth;
+  const canGoNext = visibleMonth < calendarEndMonth;
+  const changeMonth = (amount: number) => {
+    const nextMonth = addLocalMonths(visibleMonth, amount);
+    if (nextMonth < calendarStartMonth || nextMonth > calendarEndMonth) return;
+    setVisibleMonth(nextMonth);
+    setSelectedDate(nextMonth);
+  };
+  const goToToday = () => {
+    setVisibleMonth(today.slice(0, 7) + '-01');
+    setSelectedDate(today);
+  };
 
   return (
     <SafeAreaView edges={['top']} style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -47,11 +70,31 @@ export default function CalendarScreen() {
         <View style={[styles.calendarCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <View style={styles.cardHeader}>
             <View>
-              <Text style={[styles.month, { color: colors.ink }]}>{formatMonth(today)}</Text>
-              <Text style={[styles.range, { color: colors.inkMuted }]}>过去 12 周的共同记录</Text>
+              <Text style={[styles.month, { color: colors.ink }]}>{formatMonth(visibleMonth)}</Text>
+              <Text style={[styles.range, { color: colors.inkMuted }]}>查看 {calendarStartMonth.slice(0, 4)}—{calendarEndMonth.slice(0, 4)} 年的共同记录</Text>
             </View>
-            <View style={[styles.yearPill, { backgroundColor: colors.surfaceMuted }]}>
-              <Text style={[styles.yearPillText, { color: colors.inkMuted }]}>2026</Text>
+            <View style={styles.monthControls}>
+              <Pressable
+                onPress={() => changeMonth(-1)}
+                disabled={!canGoPrevious}
+                accessibilityRole="button"
+                accessibilityLabel="上一个月"
+                style={[styles.monthButton, { backgroundColor: colors.surfaceMuted, opacity: canGoPrevious ? 1 : 0.4 }]}
+              >
+                <Ionicons name="chevron-back" color={colors.ink} size={16} />
+              </Pressable>
+              <View style={[styles.yearPill, { backgroundColor: colors.surfaceMuted }]}>
+                <Text style={[styles.yearPillText, { color: colors.inkMuted }]}>{calendarStartMonth.slice(0, 4)}—{calendarEndMonth.slice(0, 4)}</Text>
+              </View>
+              <Pressable
+                onPress={() => changeMonth(1)}
+                disabled={!canGoNext}
+                accessibilityRole="button"
+                accessibilityLabel="下一个月"
+                style={[styles.monthButton, { backgroundColor: colors.surfaceMuted, opacity: canGoNext ? 1 : 0.4 }]}
+              >
+                <Ionicons name="chevron-forward" color={colors.ink} size={16} />
+              </Pressable>
             </View>
           </View>
           <View style={styles.gridHeader}>
@@ -72,6 +115,7 @@ export default function CalendarScreen() {
                   {week.map((date) => {
                     const level = getCompletionLevel(completions, date);
                     const selected = selectedDate === date;
+                    const inVisibleMonth = date.slice(0, 7) === visibleMonth.slice(0, 7);
                     return (
                       <Pressable
                         key={date}
@@ -84,6 +128,7 @@ export default function CalendarScreen() {
                             backgroundColor: level === 2 ? colors.success : level === 1 ? colors.successSoft : colors.surfaceMuted,
                             borderColor: selected ? colors.accent : 'transparent',
                             borderWidth: selected ? 2 : 1,
+                            opacity: inVisibleMonth ? 1 : 0.28,
                           },
                         ]}
                       />
@@ -110,7 +155,7 @@ export default function CalendarScreen() {
             <Text style={[styles.detailTitle, { color: colors.ink }]}>{selectedDate === today ? '今天' : formatChineseDate(selectedDate)}</Text>
             <Text style={[styles.detailSubtitle, { color: colors.inkMuted }]}>{weekdayLong(selectedDate)}</Text>
           </View>
-          <Pressable onPress={() => setSelectedDate(today)} disabled={selectedDate === today} style={[styles.todayButton, { backgroundColor: selectedDate === today ? colors.surfaceMuted : colors.accent }]}>
+          <Pressable onPress={goToToday} disabled={selectedDate === today} style={[styles.todayButton, { backgroundColor: selectedDate === today ? colors.surfaceMuted : colors.accent }]}>
             <Text style={[styles.todayButtonText, { color: selectedDate === today ? colors.inkSoft : colors.white }]}>回到今天</Text>
           </Pressable>
         </View>
@@ -173,6 +218,8 @@ const styles = StyleSheet.create({
   range: { fontSize: 11, fontWeight: '600', marginTop: 3 },
   yearPill: { height: 28, borderRadius: 10, paddingHorizontal: 10, justifyContent: 'center' },
   yearPillText: { fontSize: 11, fontWeight: '800' },
+  monthControls: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  monthButton: { width: 28, height: 28, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   gridHeader: { flexDirection: 'row', marginTop: 20 },
   weekLabelSpacer: { width: 18 },
   gridColumns: { flexDirection: 'row', gap: 6 },

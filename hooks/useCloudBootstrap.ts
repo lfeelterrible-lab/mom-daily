@@ -94,15 +94,25 @@ export const useCloudBootstrap = () => {
           .subscribe();
       }
 
-      const startDate = addLocalDays(date, -140);
-      const completionsResult = await client
-        .from('daily_completions')
-        .select('habit_id, user_id, date, completed_at')
-        .eq('pair_id', targetPairId)
-        .gte('date', startDate)
-        .lte('date', date);
-      if (cancelled || completionsResult.error) return;
-      setCloudCompletions(buildCloudCompletions((completionsResult.data ?? []) as Array<{ habit_id: string; user_id: string; date: string; completed_at: string }>, connection.userIds));
+      const startDate = addLocalDays(date, -730);
+      const pageSize = 1000;
+      const completionRows: Array<{ habit_id: string; user_id: string; date: string; completed_at: string }> = [];
+      for (let page = 0; ; page += 1) {
+        const completionsResult = await client
+          .from('daily_completions')
+          .select('habit_id, user_id, date, completed_at')
+          .eq('pair_id', targetPairId)
+          .gte('date', startDate)
+          .lte('date', date)
+          .order('date', { ascending: true })
+          .range(page * pageSize, page * pageSize + pageSize - 1);
+        if (cancelled || completionsResult.error) return;
+        const rows = (completionsResult.data ?? []) as Array<{ habit_id: string; user_id: string; date: string; completed_at: string }>;
+        completionRows.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+      if (cancelled) return;
+      setCloudCompletions(buildCloudCompletions(completionRows, connection.userIds));
     };
 
     void load();
