@@ -1,4 +1,5 @@
 import NetInfo from '@react-native-community/netinfo';
+import { Platform } from 'react-native';
 import { useEffect } from 'react';
 
 import { useMomDailyStore } from '@/store/useMomDailyStore';
@@ -12,6 +13,22 @@ export const useNetworkStatus = () => {
 
   useEffect(() => {
     let mounted = true;
+
+    if (Platform.OS === 'web') {
+      const updateBrowserStatus = () => {
+        if (mounted) setDetectedOnline(typeof navigator === 'undefined' || navigator.onLine !== false);
+      };
+
+      updateBrowserStatus();
+      window.addEventListener('online', updateBrowserStatus);
+      window.addEventListener('offline', updateBrowserStatus);
+      return () => {
+        mounted = false;
+        window.removeEventListener('online', updateBrowserStatus);
+        window.removeEventListener('offline', updateBrowserStatus);
+      };
+    }
+
     void NetInfo.fetch().then((state) => {
       if (mounted) setDetectedOnline(onlineFromState(state));
     });
