@@ -21,7 +21,16 @@ export default function Root({ children }: { children: ReactNode }) {
 
         {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
-        <title>日活 · 我和妈妈</title>
+        <title>母子每日活动</title>
+        <meta name="description" content="我和妈妈的双人日常打卡，一起完成，一起留下记录。" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="母子每日活动" />
+        <meta property="og:description" content="我和妈妈的双人日常打卡，一起完成，一起留下记录。" />
+        <meta property="og:url" content="https://momdaily.smoky-mint-8739.chatgpt.site/" />
+        <meta property="og:image" content="https://momdaily.smoky-mint-8739.chatgpt.site/favicon-momdaily.png" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="母子每日活动" />
+        <meta name="twitter:description" content="我和妈妈的双人日常打卡，一起完成，一起留下记录。" />
       </head>
       <body>{children}</body>
     </html>
