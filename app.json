@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "日活",
+    "slug": "momdaily",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon-momdaily.png",
+    "scheme": "momdaily",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E2EBDF",
+        "foregroundImage": "./assets/images/icon-momdaily.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon-momdaily.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon-momdaily.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F4F3EE"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
