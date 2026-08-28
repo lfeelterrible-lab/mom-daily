@@ -165,7 +165,7 @@ export default function OnboardingScreen() {
                 <>
                   <View style={[styles.codeHint, { backgroundColor: colors.surface }]}>
                     <Text style={[styles.codeHintLabel, { color: colors.inkMuted }]}>你的家庭邀请码</Text>
-                    <Text style={[styles.codeHintValue, { color: colors.ink }]}>MOM826</Text>
+                    <Text style={[styles.codeHintValue, { color: colors.ink }]}>创建后生成</Text>
                   </View>
                   {setupError ? <Text style={[styles.error, { color: colors.accent }]}>{setupError}</Text> : null}
                   <Pressable disabled={isConnecting} onPress={finish} style={[styles.setupButton, { backgroundColor: colors.ink, opacity: isConnecting ? 0.7 : 1 }]}>

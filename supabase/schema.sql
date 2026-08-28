@@ -204,7 +204,7 @@ begin
     raise exception 'Authentication required';
   end if;
 
-  generated_code := upper(substr(encode(gen_random_bytes(5), 'hex'), 1, 6));
+  generated_code := upper(substr(encode(extensions.gen_random_bytes(5), 'hex'), 1, 6));
   insert into public.pairs (invite_code) values (generated_code) returning * into created_pair;
   insert into public.profiles (id, display_name, pair_id, invite_code)
   values (auth.uid(), coalesce(nullif(input_display_name, ''), '我'), created_pair.id, generated_code)
