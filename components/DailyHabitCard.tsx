@@ -89,7 +89,7 @@ export function DailyHabitCard({ habit, completion, activeActor, demoMode, onTog
           <Text style={[styles.habitName, { color: colors.ink }]}>{habit.name}</Text>
           <View style={styles.timeRow}>
             <Ionicons name="time-outline" color={colors.inkMuted} size={12} />
-            <Text style={[styles.time, { color: colors.inkMuted }]}>{habit.defaultTime}</Text>
+            <Text style={[styles.time, { color: colors.inkMuted }]}>建议时间 · {habit.defaultTime}</Text>
           </View>
         </View>
         <View style={styles.statusWrap}>
@@ -114,7 +114,7 @@ export function DailyHabitCard({ habit, completion, activeActor, demoMode, onTog
 
       <View style={styles.statusRow}>
         <Text style={[styles.statusText, { color: shared ? colors.success : colors.inkMuted }]}>
-          {shared ? '今天共同完成 · +1' : someoneCompleted ? '等' + waitingFor + '完成' : '还没开始，慢慢来'}
+          {shared ? '今天共同完成 · +1' : someoneCompleted ? '等' + waitingFor + '完成' : '随时可以完成'}
         </Text>
         {shared ? (
           <Pressable onPress={onReact} accessibilityRole="button" style={({ pressed }) => [styles.action, { opacity: pressed ? 0.65 : 1 }]}>

@@ -161,7 +161,7 @@ export default function TodayScreen() {
 
           <View style={[styles.footerNote, { backgroundColor: colors.surfaceMuted }]}>
             <Ionicons name="calendar-outline" color={colors.inkMuted} size={16} />
-            <Text style={[styles.footerText, { color: colors.inkMuted }]}>建议时间只是温柔提示，不是截止时间。</Text>
+            <Text style={[styles.footerText, { color: colors.inkMuted }]}>所有任务都可随时完成，不需要按时间顺序；建议时间只作轻轻提醒。</Text>
           </View>
         </ScrollView>
         {lastEvent ? <FeedbackToast message={lastEvent.message} offline={!isOnline} /> : null}

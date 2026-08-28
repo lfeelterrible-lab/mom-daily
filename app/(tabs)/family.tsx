@@ -313,7 +313,7 @@ export default function FamilyScreen() {
                 <View style={[styles.habitSettingIcon, { backgroundColor: colors.surfaceMuted }]}><Text style={styles.habitEmoji}>{habit.emoji}</Text></View>
                 <View style={styles.habitSettingCopy}>
                   <Text style={[styles.habitSettingName, { color: colors.ink }]}>{habit.name}</Text>
-                  <Text style={[styles.habitSettingTime, { color: colors.inkMuted }]}>{habit.category} · {habit.defaultTime}</Text>
+                  <Text style={[styles.habitSettingTime, { color: colors.inkMuted }]}>{habit.category} · 建议 {habit.defaultTime}</Text>
                 </View>
                 <Text style={[styles.order, { color: colors.inkSoft }]}>{String(index + 1).padStart(2, '0')}</Text>
               </View>
