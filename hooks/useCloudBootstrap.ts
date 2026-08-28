@@ -50,20 +50,21 @@ export const useCloudBootstrap = () => {
       if (sessionResult.error || !currentUserId || cancelled) return;
 
       const profileResult = await client.from('profiles').select('id, display_name, avatar_url, pair_id, invite_code').eq('id', currentUserId).maybeSingle();
-      const profile = profileResult.data as { pair_id?: string; invite_code?: string } | null;
+      const profile = profileResult.data as { display_name?: string; pair_id?: string; invite_code?: string } | null;
       const targetPairId = profile?.pair_id;
       if (profileResult.error || !targetPairId || cancelled) return;
+      const resolvedActor: Actor = profile?.display_name === '妈妈' ? 'mom' : profile?.display_name === '我' ? 'me' : activeActor;
 
       const membersResult = await getPairMembers(targetPairId);
       if (membersResult.error || cancelled) return;
       const members = (membersResult.data ?? []) as PairMember[];
-      const connection = connectionFromMembers(members, currentUserId, activeActor);
+      const connection = connectionFromMembers(members, currentUserId, resolvedActor);
       setPairConnection({
         pairId: targetPairId,
         inviteCode: profile.invite_code ?? '',
         memberCount: members.length,
         ...connection,
-        activeActor,
+        activeActor: resolvedActor,
       });
 
       if (!memberChannel) {
@@ -85,8 +86,8 @@ export const useCloudBootstrap = () => {
                 pairId: targetPairId,
                 inviteCode: profile.invite_code ?? '',
                 memberCount: latestMembers.length,
-                ...connectionFromMembers(latestMembers, currentUserId, activeActor),
-                activeActor,
+                ...connectionFromMembers(latestMembers, currentUserId, resolvedActor),
+                activeActor: resolvedActor,
               });
             },
           )
