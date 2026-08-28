@@ -148,6 +148,14 @@ const shiftDate = (date: string, amount: number): string => {
 
 const demoModeEnabled = process.env.EXPO_PUBLIC_DEV_DEMO_MODE === 'true';
 
+const ssrSafeStorage = {
+  getItem: async (_key: string) => null,
+  setItem: async (_key: string, _value: string) => undefined,
+  removeItem: async (_key: string) => undefined,
+};
+
+const localStorage = typeof window === 'undefined' ? ssrSafeStorage : AsyncStorage;
+
 const initialState = {
   hydrated: false,
   demoMode: demoModeEnabled,
@@ -309,7 +317,7 @@ export const useMomDailyStore = create<Store>()(
     }),
     {
       name: 'momdaily-local-state',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => localStorage),
       version: 2,
       migrate: () => initialState,
       onRehydrateStorage: () => (state) => {

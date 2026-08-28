@@ -117,9 +117,9 @@ create policy "users upload own avatar" on storage.objects
 
 drop policy if exists "users update own avatar" on storage.objects;
 create policy "users update own avatar" on storage.objects
-  for update using (bucket_id = 'avatars' and owner_id = auth.uid())
-  with check (bucket_id = 'avatars' and owner_id = auth.uid());
+  for update using (bucket_id = 'avatars' and owner_id = auth.uid()::text)
+  with check (bucket_id = 'avatars' and owner_id = auth.uid()::text);
 
 drop policy if exists "users delete own avatar" on storage.objects;
 create policy "users delete own avatar" on storage.objects
-  for delete using (bucket_id = 'avatars' and owner_id = auth.uid());
+  for delete using (bucket_id = 'avatars' and owner_id = auth.uid()::text);
