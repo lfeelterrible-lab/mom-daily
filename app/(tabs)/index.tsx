@@ -12,6 +12,7 @@ import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { ReactionPicker } from '@/components/ReactionPicker';
 import { SharedProgressRing } from '@/components/SharedProgressRing';
 import { StreakBadge } from '@/components/StreakBadge';
+import { SystemDailyGreeting } from '@/components/SystemDailyGreeting';
 import { defaultHabits, type Habit } from '@/constants/habits';
 import { getCompletion, getCurrentSharedStreak, getDaySummary, getLongestSharedStreak } from '@/features/streak/streak';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -31,6 +32,8 @@ export default function TodayScreen() {
   const date = useLocalDate();
   const completions = useMomDailyStore((state) => state.completions);
   const dailyMessages = useMomDailyStore((state) => state.dailyMessages);
+  const hydrated = useMomDailyStore((state) => state.hydrated);
+  const systemGreetingDismissedDate = useMomDailyStore((state) => state.systemGreetingDismissedDate);
   const activeActor = useMomDailyStore((state) => state.activeActor);
   const demoMode = useMomDailyStore((state) => state.demoMode);
   const displayNames = useMomDailyStore((state) => state.displayNames);
@@ -45,6 +48,7 @@ export default function TodayScreen() {
   const sendNudge = useMomDailyStore((state) => state.sendNudge);
   const addReaction = useMomDailyStore((state) => state.addReaction);
   const saveDailyMessage = useMomDailyStore((state) => state.saveDailyMessage);
+  const dismissSystemGreeting = useMomDailyStore((state) => state.dismissSystemGreeting);
   const sendQuickMessage = useMomDailyStore((state) => state.sendQuickMessage);
   const [reactionHabit, setReactionHabit] = useState<Habit | null>(null);
 
@@ -123,6 +127,15 @@ export default function TodayScreen() {
 
           <View style={styles.streakSpacing}>
             <StreakBadge current={currentStreak} longest={longestStreak} />
+          </View>
+
+          <View style={styles.messageSpacing}>
+            <SystemDailyGreeting
+              date={date}
+              hydrated={hydrated}
+              dismissedDate={systemGreetingDismissedDate}
+              onDismiss={dismissSystemGreeting}
+            />
           </View>
 
           <View style={styles.messageSpacing}>

@@ -89,6 +89,7 @@ type Store = {
   activeActor: Actor;
   themeMode: ThemeMode;
   hasSeenOnboarding: boolean;
+  systemGreetingDismissedDate: string;
   isOnline: boolean;
   offlineOverride: boolean;
   pairId: string;
@@ -115,6 +116,7 @@ type Store = {
   setDemoMode: (enabled: boolean) => void;
   setThemeMode: (mode: ThemeMode) => void;
   setHasSeenOnboarding: (seen: boolean) => void;
+  dismissSystemGreeting: (date: string) => void;
   setOnline: (online: boolean) => void;
   setDetectedOnline: (online: boolean) => void;
   setPairConnection: (connection: { pairId: string; inviteCode: string; displayNames: { me: string; mom: string }; userIds: { me: string; mom: string }; memberCount?: number; activeActor?: Actor }) => void;
@@ -216,6 +218,7 @@ const initialState = {
   activeActor: 'me' as Actor,
   themeMode: 'light' as ThemeMode,
   hasSeenOnboarding: false,
+  systemGreetingDismissedDate: '',
   isOnline: true,
   offlineOverride: false,
   pairId: demoModeEnabled ? 'demo-pair-momdaily' : '',
@@ -257,6 +260,7 @@ export const useMomDailyStore = create<Store>()(
       setDemoMode: (demoMode) => set({ demoMode }),
       setThemeMode: (themeMode) => set({ themeMode }),
       setHasSeenOnboarding: (hasSeenOnboarding) => set({ hasSeenOnboarding }),
+      dismissSystemGreeting: (systemGreetingDismissedDate) => set({ systemGreetingDismissedDate }),
       setOnline: (isOnline) => set({ isOnline, offlineOverride: !isOnline }),
       setDetectedOnline: (isOnline) => set((state) => (state.offlineOverride ? state : { isOnline })),
       setPairConnection: ({ pairId, inviteCode, displayNames, userIds, memberCount, activeActor }) =>
@@ -594,7 +598,7 @@ export const useMomDailyStore = create<Store>()(
     {
       name: 'momdaily-local-state',
       storage: createJSONStorage(() => localStorage),
-       version: 5,
+      version: 6,
       migrate: (persisted) => {
         const persistedState = persisted as Partial<Store> | undefined;
         const hasLegacyDemoData = persistedState?.demoMode === true || persistedState?.pairId === DEMO_PAIR_ID;
