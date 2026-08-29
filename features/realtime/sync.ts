@@ -16,6 +16,16 @@ export type DailyMessageSyncPayload = {
   content: string;
 };
 
+export type FootprintSyncPayload = {
+  pairId: string;
+  provinceCode: string;
+  provinceName: string;
+  cityCode: string;
+  cityName: string;
+  userId: string;
+  visitedAt: string;
+};
+
 export const syncCompletionToSupabase = async (payload: CompletionSyncPayload) => {
   if (!supabase || !isSupabaseConfigured) return false;
 
@@ -100,8 +110,38 @@ export const syncReactionToSupabase = async (reaction: Pick<Reaction, 'habitId' 
   return !error;
 };
 
+export const syncFootprintToSupabase = async (payload: FootprintSyncPayload) => {
+  if (!supabase || !isSupabaseConfigured) return false;
+  const { error } = await supabase.from('travel_footprints').upsert(
+    {
+      pair_id: payload.pairId,
+      province_code: payload.provinceCode,
+      province_name: payload.provinceName,
+      city_code: payload.cityCode,
+      city_name: payload.cityName,
+      created_by: payload.userId,
+      visited_at: payload.visitedAt,
+    },
+    { onConflict: 'pair_id,province_code,city_code' },
+  );
+  if (error) console.warn('[MomDaily] footprint sync failed', error.message);
+  return !error;
+};
+
+export const removeFootprintFromSupabase = async (payload: Pick<FootprintSyncPayload, 'pairId' | 'provinceCode' | 'cityCode'>) => {
+  if (!supabase || !isSupabaseConfigured) return false;
+  const { error } = await supabase
+    .from('travel_footprints')
+    .delete()
+    .eq('pair_id', payload.pairId)
+    .eq('province_code', payload.provinceCode)
+    .eq('city_code', payload.cityCode);
+  if (error) console.warn('[MomDaily] footprint delete failed', error.message);
+  return !error;
+};
+
 export const flushPendingSync = async (
-  operations: Array<{ id: string; type: 'completion' | 'nudge' | 'reaction' | 'message'; payload: Record<string, string | boolean> }>,
+  operations: Array<{ id: string; type: 'completion' | 'nudge' | 'reaction' | 'message' | 'footprint-add' | 'footprint-remove'; payload: Record<string, string | boolean> }>,
 ) => {
   if (!supabase || !isSupabaseConfigured) return [];
 
@@ -130,6 +170,22 @@ export const flushPendingSync = async (
         String(operation.payload.toUser),
         String(operation.payload.pairId),
       );
+    } else if (operation.type === 'footprint-add') {
+      synced = await syncFootprintToSupabase({
+        pairId: String(operation.payload.pairId),
+        provinceCode: String(operation.payload.provinceCode),
+        provinceName: String(operation.payload.provinceName),
+        cityCode: String(operation.payload.cityCode),
+        cityName: String(operation.payload.cityName),
+        userId: String(operation.payload.userId),
+        visitedAt: String(operation.payload.visitedAt),
+      });
+    } else if (operation.type === 'footprint-remove') {
+      synced = await removeFootprintFromSupabase({
+        pairId: String(operation.payload.pairId),
+        provinceCode: String(operation.payload.provinceCode),
+        cityCode: String(operation.payload.cityCode),
+      });
     } else {
       synced = await syncDailyMessageToSupabase({
         userId: String(operation.payload.userId),

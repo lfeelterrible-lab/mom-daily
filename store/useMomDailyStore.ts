@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { defaultHabits } from '@/constants/habits';
 import { getLocalDate } from '@/lib/date';
 import { DEMO_ME_ID, DEMO_MOM_ID, DEMO_PAIR_ID, isSupabaseConfigured } from '@/lib/supabase';
-import { syncCompletionToSupabase, syncDailyMessageToSupabase, syncNudgeToSupabase, syncReactionToSupabase } from '@/features/realtime/sync';
+import { removeFootprintFromSupabase, syncCompletionToSupabase, syncDailyMessageToSupabase, syncFootprintToSupabase, syncNudgeToSupabase, syncReactionToSupabase } from '@/features/realtime/sync';
 import type { ThemeMode } from '@/constants/theme';
 
 export type Actor = 'me' | 'mom';
@@ -45,9 +45,20 @@ export type Reaction = {
   createdAt: string;
 };
 
+export type Footprint = {
+  id: string;
+  pairId: string;
+  provinceCode: string;
+  provinceName: string;
+  cityCode: string;
+  cityName: string;
+  visitedAt: string;
+  createdBy: Actor;
+};
+
 export type PendingSync = {
   id: string;
-  type: 'completion' | 'nudge' | 'reaction' | 'message';
+  type: 'completion' | 'nudge' | 'reaction' | 'message' | 'footprint-add' | 'footprint-remove';
   payload: Record<string, string | boolean>;
 };
 
@@ -80,6 +91,7 @@ type Store = {
   dailyMessages: DailyMessagesByDate;
   nudges: Nudge[];
   reactions: Reaction[];
+  footprints: Footprint[];
   pendingSync: PendingSync[];
   notificationSettings: {
     enabled: boolean;
@@ -100,6 +112,7 @@ type Store = {
   setCloudDailyMessages: (messages: DailyMessagesByDate) => void;
   setCloudNudges: (nudges: Nudge[]) => void;
   setCloudReactions: (reactions: Reaction[]) => void;
+  setCloudFootprints: (footprints: Footprint[]) => void;
   setNotification: (key: 'enabled' | 'morningReminder' | 'eveningReminder', value: boolean) => void;
   toggleCompletion: (habitId: string, actor?: Actor) => void;
   applyRemoteCompletion: (habitId: string, actor: Actor, completed: boolean, date?: string) => void;
@@ -107,8 +120,11 @@ type Store = {
   applyRemoteDailyMessage: (actor: Actor, content: string, date?: string, updatedAt?: string) => void;
   applyRemoteNudge: (nudge: Nudge) => void;
   applyRemoteReaction: (reaction: Reaction) => void;
+  applyRemoteFootprint: (footprint: Footprint) => void;
+  removeRemoteFootprint: (provinceCode: string, cityCode: string) => void;
   sendNudge: (habitId: string, actor?: Actor) => void;
   addReaction: (habitId: string, emoji: string, actor?: Actor) => void;
+  toggleFootprint: (province: { code: string; name: string }, city: { code: string; name: string }) => void;
   clearEvent: () => void;
   addPendingSync: (operation: PendingSync) => void;
   removePendingSync: (id: string) => void;
@@ -117,6 +133,7 @@ type Store = {
 
 const nowIso = () => new Date().toISOString();
 const makeId = (prefix: string) => prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+const footprintKey = (provinceCode: string, cityCode: string) => provinceCode + ':' + cityCode;
 
 const blankDay = (): Record<string, DailyCompletion> =>
   Object.fromEntries(defaultHabits.map((habit) => [habit.id, { me: false, mom: false }]));
@@ -206,6 +223,7 @@ const initialState = {
   reactions: [
     { id: 'reaction-seed', habitId: 'breakfast', from: 'mom', to: 'me', emoji: '❤️', date: getLocalDate(), createdAt: nowIso() },
   ] as Reaction[],
+  footprints: [] as Footprint[],
   pendingSync: [] as PendingSync[],
   notificationSettings: {
     enabled: true,
@@ -227,12 +245,13 @@ export const useMomDailyStore = create<Store>()(
       setOnline: (isOnline) => set({ isOnline, offlineOverride: !isOnline }),
       setDetectedOnline: (isOnline) => set((state) => (state.offlineOverride ? state : { isOnline })),
       setPairConnection: ({ pairId, inviteCode, displayNames, userIds, memberCount, activeActor }) =>
-        set({ pairId, inviteCode, displayNames, userIds, ...(memberCount !== undefined ? { pairMemberCount: memberCount } : {}), ...(activeActor ? { activeActor } : {}) }),
+        set((state) => ({ pairId, inviteCode, displayNames, userIds, ...(memberCount !== undefined ? { pairMemberCount: memberCount } : {}), ...(activeActor ? { activeActor } : {}), ...(state.pairId !== pairId ? { footprints: [] } : {}) })),
       setPairPresence: (pairPresence) => set({ pairPresence }),
       setCloudCompletions: (completions) => set({ completions }),
       setCloudDailyMessages: (dailyMessages) => set({ dailyMessages }),
       setCloudNudges: (nudges) => set({ nudges }),
       setCloudReactions: (reactions) => set({ reactions }),
+      setCloudFootprints: (footprints) => set({ footprints }),
       setNotification: (key, value) =>
         set((state) => ({
           notificationSettings: { ...state.notificationSettings, [key]: value },
@@ -384,6 +403,22 @@ export const useMomDailyStore = create<Store>()(
           };
         });
       },
+      applyRemoteFootprint: (footprint) => {
+        set((state) => {
+          if (state.footprints.some((item) => footprintKey(item.provinceCode, item.cityCode) === footprintKey(footprint.provinceCode, footprint.cityCode))) return state;
+          return {
+            footprints: [...state.footprints, footprint],
+            lastEvent: {
+              id: makeId('remote-footprint'),
+              tone: 'success',
+              message: (footprint.createdBy === 'mom' ? '妈妈' : '我') + '记下了“' + footprint.provinceName + '·' + footprint.cityName + '”',
+            },
+          };
+        });
+      },
+      removeRemoteFootprint: (provinceCode, cityCode) => {
+        set((state) => ({ footprints: state.footprints.filter((item) => footprintKey(item.provinceCode, item.cityCode) !== footprintKey(provinceCode, cityCode)) }));
+      },
       sendNudge: (habitId, actor = get().activeActor) => {
         const date = getLocalDate();
         const to: Actor = actor === 'me' ? 'mom' : 'me';
@@ -424,6 +459,54 @@ export const useMomDailyStore = create<Store>()(
           });
         }
       },
+      toggleFootprint: (province, city) => {
+        const state = get();
+        const pairId = state.pairId;
+        const actor = state.activeActor;
+        const userId = state.userIds[actor];
+        const existing = state.footprints.find((item) => footprintKey(item.provinceCode, item.cityCode) === footprintKey(province.code, city.code));
+        const cloudReady = !state.demoMode && isSupabaseConfigured && Boolean(pairId) && Boolean(userId);
+
+        if (!pairId && !state.demoMode) {
+          set({ lastEvent: { id: makeId('footprint-pair'), tone: 'neutral', message: '先完成双人绑定，再记录我们的足迹' } });
+          return;
+        }
+
+        if (existing) {
+          set((current) => ({
+            footprints: current.footprints.filter((item) => footprintKey(item.provinceCode, item.cityCode) !== footprintKey(province.code, city.code)),
+            lastEvent: { id: makeId('footprint-remove'), tone: 'neutral', message: '已移除“' + province.name + '·' + city.name + '”' },
+          }));
+          const removePayload = { pairId, provinceCode: province.code, cityCode: city.code };
+          if (state.isOnline && cloudReady) {
+            void removeFootprintFromSupabase(removePayload);
+          } else if (!state.isOnline && cloudReady) {
+            get().addPendingSync({ id: makeId('queue'), type: 'footprint-remove', payload: removePayload });
+          }
+          return;
+        }
+
+        const footprint: Footprint = {
+          id: makeId('footprint'),
+          pairId,
+          provinceCode: province.code,
+          provinceName: province.name,
+          cityCode: city.code,
+          cityName: city.name,
+          visitedAt: nowIso(),
+          createdBy: actor,
+        };
+        set((current) => ({
+          footprints: [...current.footprints, footprint],
+          lastEvent: { id: footprint.id, tone: 'success', message: '已记下“' + province.name + '·' + city.name + '”' },
+        }));
+        const addPayload = { pairId, provinceCode: province.code, provinceName: province.name, cityCode: city.code, cityName: city.name, userId, visitedAt: footprint.visitedAt };
+        if (state.isOnline && cloudReady) {
+          void syncFootprintToSupabase(addPayload);
+        } else if (!state.isOnline && cloudReady) {
+          get().addPendingSync({ id: makeId('queue'), type: 'footprint-add', payload: addPayload });
+        }
+      },
       clearEvent: () => set({ lastEvent: null }),
       addPendingSync: (operation) => set((state) => ({ pendingSync: [...state.pendingSync, operation] })),
       removePendingSync: (id) => set((state) => ({ pendingSync: state.pendingSync.filter((item) => item.id !== id) })),
@@ -438,6 +521,7 @@ export const useMomDailyStore = create<Store>()(
           },
           nudges: [],
           reactions: [],
+          footprints: [],
           pendingSync: [],
           lastEvent: { id: makeId('reset'), tone: 'neutral', message: 'Demo 已恢复到今天的示例状态' },
         }),

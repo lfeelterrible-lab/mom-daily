@@ -65,6 +65,18 @@ create table if not exists public.daily_messages (
   unique (pair_id, user_id, date)
 );
 
+create table if not exists public.travel_footprints (
+  id uuid primary key default gen_random_uuid(),
+  pair_id uuid not null references public.pairs(id) on delete cascade,
+  province_code text not null,
+  province_name text not null,
+  city_code text not null,
+  city_name text not null,
+  created_by uuid not null references auth.users(id) on delete cascade,
+  visited_at timestamptz not null default now(),
+  unique (pair_id, province_code, city_code)
+);
+
 create table if not exists public.reactions (
   id uuid primary key default gen_random_uuid(),
   pair_id uuid not null references public.pairs(id) on delete cascade,
@@ -105,6 +117,7 @@ create index if not exists daily_completions_pair_date_idx on public.daily_compl
 create index if not exists daily_completions_user_date_idx on public.daily_completions(user_id, date);
 create index if not exists daily_status_pair_date_idx on public.daily_status(pair_id, date);
 create index if not exists daily_messages_pair_date_idx on public.daily_messages(pair_id, date);
+create index if not exists travel_footprints_pair_idx on public.travel_footprints(pair_id);
 create index if not exists reactions_pair_date_idx on public.reactions(pair_id, date);
 create index if not exists nudges_pair_date_idx on public.nudges(pair_id, date);
 
@@ -334,6 +347,7 @@ alter table public.habits enable row level security;
 alter table public.daily_completions enable row level security;
 alter table public.daily_status enable row level security;
 alter table public.daily_messages enable row level security;
+alter table public.travel_footprints enable row level security;
 alter table public.reactions enable row level security;
 alter table public.nudges enable row level security;
 alter table public.notification_settings enable row level security;
@@ -341,6 +355,7 @@ alter table public.notification_settings enable row level security;
 -- Realtime DELETE payloads need the old habit/user/date values so the other phone can update immediately.
 alter table public.daily_completions replica identity full;
 alter table public.daily_messages replica identity full;
+alter table public.travel_footprints replica identity full;
 alter table public.reactions replica identity full;
 alter table public.nudges replica identity full;
 
@@ -354,6 +369,13 @@ end $$;
 do $$
 begin
   alter publication supabase_realtime add table public.daily_messages;
+exception when duplicate_object then
+  null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.travel_footprints;
 exception when duplicate_object then
   null;
 end $$;

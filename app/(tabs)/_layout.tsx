@@ -10,6 +10,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { usePairPresence } from '@/hooks/usePairPresence';
 import { useRealtimeCompletions } from '@/hooks/useRealtimeCompletions';
 import { useRealtimeDailyMessages } from '@/hooks/useRealtimeDailyMessages';
+import { useRealtimeFootprints } from '@/hooks/useRealtimeFootprints';
 import { useRealtimeInteractions } from '@/hooks/useRealtimeInteractions';
 import { useSyncQueue } from '@/hooks/useSyncQueue';
 import { useMomDailyStore } from '@/store/useMomDailyStore';
@@ -18,6 +19,7 @@ export default function TabLayout() {
   const { colors } = useAppTheme();
   useRealtimeCompletions();
   useRealtimeDailyMessages();
+  useRealtimeFootprints();
   useRealtimeInteractions();
   useCloudBootstrap();
   useNetworkStatus();

@@ -93,6 +93,21 @@ create policy "pair members delete own daily messages" on public.daily_messages
     and public.is_pair_member(pair_id)
   );
 
+drop policy if exists "pair members read travel footprints" on public.travel_footprints;
+create policy "pair members read travel footprints" on public.travel_footprints
+  for select using (public.is_pair_member(pair_id));
+
+drop policy if exists "pair members add travel footprints" on public.travel_footprints;
+create policy "pair members add travel footprints" on public.travel_footprints
+  for insert with check (
+    created_by = auth.uid()
+    and public.is_pair_member(pair_id)
+  );
+
+drop policy if exists "pair members remove travel footprints" on public.travel_footprints;
+create policy "pair members remove travel footprints" on public.travel_footprints
+  for delete using (public.is_pair_member(pair_id));
+
 drop policy if exists "pair members read reactions" on public.reactions;
 create policy "pair members read reactions" on public.reactions
   for select using (public.is_pair_member(pair_id));

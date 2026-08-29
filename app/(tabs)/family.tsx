@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
 import { AppMark } from '@/components/AppMark';
+import { FootprintCard } from '@/components/FootprintCard';
 import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { defaultHabits } from '@/constants/habits';
 import { ensureSession } from '@/features/auth/auth';
@@ -36,6 +37,8 @@ export default function FamilyScreen() {
   const isOnline = useMomDailyStore((state) => state.isOnline);
   const setOnline = useMomDailyStore((state) => state.setOnline);
   const pendingSync = useMomDailyStore((state) => state.pendingSync);
+  const footprints = useMomDailyStore((state) => state.footprints);
+  const toggleFootprint = useMomDailyStore((state) => state.toggleFootprint);
   const resetDemo = useMomDailyStore((state) => state.resetDemo);
   const [copied, setCopied] = useState(false);
   const [joinInviteCode, setJoinInviteCode] = useState('');
@@ -340,6 +343,13 @@ export default function FamilyScreen() {
             {joinError ? <Text style={[styles.inviteError, { color: colors.accent }]}>{joinError}</Text> : null}
             {joinMessage ? <Text style={[styles.inviteSuccess, { color: colors.success }]}>{joinMessage}</Text> : null}
           </View>
+
+          <FootprintCard
+            footprints={footprints}
+            pairConnected={pairConnected}
+            isOnline={isOnline}
+            onToggleCity={(province, city) => toggleFootprint(province, city)}
+          />
 
           {demoMode ? (
             <View style={[styles.demoCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
