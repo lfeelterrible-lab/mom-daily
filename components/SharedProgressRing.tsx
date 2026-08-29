@@ -1,5 +1,5 @@
 import { Circle, Svg } from 'react-native-svg';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { useAppTheme } from '@/hooks/useAppTheme';
 
@@ -29,18 +29,20 @@ export function SharedProgressRing({ count, total = 11, size = 190, label = '今
   );
 
   if (Platform.OS === 'web') {
+    const webRingStyle = {
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+      padding: strokeWidth,
+      backgroundImage: `conic-gradient(${colors.accent} ${percentage}%, ${colors.line} ${percentage}% 100%)`,
+    } as unknown as ViewStyle;
+
     return (
       <View style={[styles.wrapper, { width: size, height: size }]}>
         <View
           style={[
             styles.webRing,
-            {
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              padding: strokeWidth,
-              backgroundImage: `conic-gradient(${colors.accent} ${percentage}%, ${colors.line} ${percentage}% 100%)`,
-            } as any,
+            webRingStyle,
           ]}
         >
           <View style={[styles.webCutout, { borderRadius: size / 2, backgroundColor: colors.surfaceGreen }]}>{center}</View>

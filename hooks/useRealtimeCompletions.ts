@@ -1,14 +1,9 @@
 import { useEffect } from 'react';
 
 import { useLocalDate } from '@/hooks/useLocalDate';
+import { actorForUserId } from '@/lib/pair';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useMomDailyStore, type Actor } from '@/store/useMomDailyStore';
-
-const actorForUserId = (userId: string, userIds: { me: string; mom: string }): Actor | null => {
-  if (userId === userIds.me) return 'me';
-  if (userId === userIds.mom) return 'mom';
-  return null;
-};
 
 export const useRealtimeCompletions = () => {
   const applyRemoteCompletion = useMomDailyStore((state) => state.applyRemoteCompletion);

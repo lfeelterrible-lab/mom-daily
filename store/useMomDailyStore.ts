@@ -150,6 +150,13 @@ type Store = {
 const nowIso = () => new Date().toISOString();
 const makeId = (prefix: string) => prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 const footprintKey = (provinceCode: string, cityCode: string) => provinceCode + ':' + cityCode;
+const queueSyncOnFailure = (request: Promise<boolean>, enqueue: () => void) => {
+  void request
+    .then((synced) => {
+      if (!synced) enqueue();
+    })
+    .catch(enqueue);
+};
 
 const blankDay = (): Record<string, DailyCompletion> =>
   Object.fromEntries(defaultHabits.map((habit) => [habit.id, { me: false, mom: false }]));
@@ -264,7 +271,29 @@ export const useMomDailyStore = create<Store>()(
       setOnline: (isOnline) => set({ isOnline, offlineOverride: !isOnline }),
       setDetectedOnline: (isOnline) => set((state) => (state.offlineOverride ? state : { isOnline })),
       setPairConnection: ({ pairId, inviteCode, displayNames, userIds, memberCount, activeActor }) =>
-        set((state) => ({ pairId, inviteCode, displayNames, userIds, ...(memberCount !== undefined ? { pairMemberCount: memberCount } : {}), ...(activeActor ? { activeActor } : {}), ...(state.pairId !== pairId ? { footprints: [] } : {}) })),
+        set((state) => {
+          const pairChanged = state.pairId !== pairId;
+          return {
+            pairId,
+            inviteCode,
+            displayNames,
+            userIds,
+            ...(memberCount !== undefined ? { pairMemberCount: memberCount } : {}),
+            ...(activeActor ? { activeActor } : {}),
+            ...(pairChanged
+              ? {
+                  completions: {},
+                  dailyMessages: {},
+                  nudges: [],
+                  reactions: [],
+                  footprints: [],
+                  quickMessages: [],
+                  pendingSync: [],
+                  pairPresence: { me: false, mom: false },
+                }
+              : {}),
+          };
+        }),
       setPairPresence: (pairPresence) => set({ pairPresence }),
       setCloudCompletions: (completions) => set({ completions }),
       setCloudDailyMessages: (dailyMessages) => set({ dailyMessages }),
@@ -304,19 +333,19 @@ export const useMomDailyStore = create<Store>()(
           };
         });
 
-        const userId = actor === 'me' ? get().userIds.me : get().userIds.mom;
-        const cloudReady = !get().demoMode && isSupabaseConfigured;
-        const payload = { habitId, userId, pairId: get().pairId, date, completed: nextValue };
-        if (get().isOnline && cloudReady) {
-          void syncCompletionToSupabase(payload);
-        } else {
-          if (!get().isOnline) {
-            get().addPendingSync({
-              id: makeId('queue'),
-              type: 'completion',
-              payload: { habitId, userId, pairId: get().pairId, date, completed: nextValue },
-            });
-          }
+        const state = get();
+        const userId = state.userIds[actor];
+        const cloudReady = !state.demoMode && isSupabaseConfigured && Boolean(state.pairId) && Boolean(userId);
+        const payload = { habitId, userId, pairId: state.pairId, date, completed: nextValue };
+        const pendingOperation: PendingSync = {
+          id: makeId('queue'),
+          type: 'completion',
+          payload,
+        };
+        if (state.isOnline && cloudReady) {
+          queueSyncOnFailure(syncCompletionToSupabase(payload), () => get().addPendingSync(pendingOperation));
+        } else if (!state.isOnline && cloudReady) {
+          get().addPendingSync(pendingOperation);
         }
       },
       applyRemoteCompletion: (habitId, actor, completed, date = getLocalDate()) => {
@@ -362,19 +391,21 @@ export const useMomDailyStore = create<Store>()(
           };
         });
 
-        const userId = actor === 'me' ? get().userIds.me : get().userIds.mom;
-        const pairId = get().pairId;
-        const cloudReady = !get().demoMode && isSupabaseConfigured && Boolean(userId) && Boolean(pairId);
+        const state = get();
+        const userId = state.userIds[actor];
+        const pairId = state.pairId;
+        const cloudReady = !state.demoMode && isSupabaseConfigured && Boolean(userId) && Boolean(pairId);
         const payload = { userId, pairId, date, content };
+        const pendingOperation: PendingSync = {
+          id: makeId('queue'),
+          type: 'message',
+          payload,
+        };
 
-        if (get().isOnline && cloudReady) {
-          void syncDailyMessageToSupabase(payload);
-        } else if (!get().isOnline && cloudReady) {
-          get().addPendingSync({
-            id: makeId('queue'),
-            type: 'message',
-            payload,
-          });
+        if (state.isOnline && cloudReady) {
+          queueSyncOnFailure(syncDailyMessageToSupabase(payload), () => get().addPendingSync(pendingOperation));
+        } else if (!state.isOnline && cloudReady) {
+          get().addPendingSync(pendingOperation);
         }
       },
       applyRemoteDailyMessage: (actor, content, date = getLocalDate(), updatedAt = nowIso()) => {
@@ -465,14 +496,19 @@ export const useMomDailyStore = create<Store>()(
           nudges: [...state.nudges, nudge],
           lastEvent: { id: nudge.id, tone: 'success', message: '提醒已送达，轻轻等一下就好' },
         }));
-        if (get().isOnline && !get().demoMode && isSupabaseConfigured) {
-          void syncNudgeToSupabase(nudge, actor === 'me' ? get().userIds.me : get().userIds.mom, to === 'me' ? get().userIds.me : get().userIds.mom, get().pairId);
-        } else if (!get().isOnline) {
-          get().addPendingSync({
-            id: makeId('queue'),
-            type: 'nudge',
-            payload: { habitId, fromUser: actor === 'me' ? get().userIds.me : get().userIds.mom, toUser: to === 'me' ? get().userIds.me : get().userIds.mom, pairId: get().pairId, date },
-          });
+        const state = get();
+        const fromUser = state.userIds[actor];
+        const toUser = state.userIds[to];
+        const cloudReady = !state.demoMode && isSupabaseConfigured && Boolean(state.pairId) && Boolean(fromUser) && Boolean(toUser);
+        const pendingOperation: PendingSync = {
+          id: makeId('queue'),
+          type: 'nudge',
+          payload: { habitId, fromUser, toUser, pairId: state.pairId, date },
+        };
+        if (state.isOnline && cloudReady) {
+          queueSyncOnFailure(syncNudgeToSupabase(nudge, fromUser, toUser, state.pairId), () => get().addPendingSync(pendingOperation));
+        } else if (!state.isOnline && cloudReady) {
+          get().addPendingSync(pendingOperation);
         }
       },
       addReaction: (habitId, emoji, actor = get().activeActor) => {
@@ -482,14 +518,19 @@ export const useMomDailyStore = create<Store>()(
           reactions: [...state.reactions, reaction],
           lastEvent: { id: reaction.id, tone: 'success', message: '回应已送达 ' + emoji },
         }));
-        if (get().isOnline && !get().demoMode && isSupabaseConfigured) {
-          void syncReactionToSupabase(reaction, actor === 'me' ? get().userIds.me : get().userIds.mom, to === 'me' ? get().userIds.me : get().userIds.mom, get().pairId);
-        } else if (!get().isOnline) {
-          get().addPendingSync({
-            id: makeId('queue'),
-            type: 'reaction',
-            payload: { habitId, fromUser: actor === 'me' ? get().userIds.me : get().userIds.mom, toUser: to === 'me' ? get().userIds.me : get().userIds.mom, pairId: get().pairId, emoji, date: reaction.date },
-          });
+        const state = get();
+        const fromUser = state.userIds[actor];
+        const toUser = state.userIds[to];
+        const cloudReady = !state.demoMode && isSupabaseConfigured && Boolean(state.pairId) && Boolean(fromUser) && Boolean(toUser);
+        const pendingOperation: PendingSync = {
+          id: makeId('queue'),
+          type: 'reaction',
+          payload: { habitId, fromUser, toUser, pairId: state.pairId, emoji, date: reaction.date },
+        };
+        if (state.isOnline && cloudReady) {
+          queueSyncOnFailure(syncReactionToSupabase(reaction, fromUser, toUser, state.pairId), () => get().addPendingSync(pendingOperation));
+        } else if (!state.isOnline && cloudReady) {
+          get().addPendingSync(pendingOperation);
         }
       },
       toggleFootprint: (province, city) => {
@@ -500,7 +541,7 @@ export const useMomDailyStore = create<Store>()(
         const existing = state.footprints.find((item) => footprintKey(item.provinceCode, item.cityCode) === footprintKey(province.code, city.code));
         const cloudReady = !state.demoMode && isSupabaseConfigured && Boolean(pairId) && Boolean(userId);
 
-        if (!pairId && !state.demoMode) {
+        if (!state.demoMode && (!pairId || !userId)) {
           set({ lastEvent: { id: makeId('footprint-pair'), tone: 'neutral', message: '先完成双人绑定，再记录我们的足迹' } });
           return;
         }
@@ -511,10 +552,11 @@ export const useMomDailyStore = create<Store>()(
             lastEvent: { id: makeId('footprint-remove'), tone: 'neutral', message: '已移除“' + province.name + '·' + city.name + '”' },
           }));
           const removePayload = { pairId, provinceCode: province.code, cityCode: city.code };
+          const pendingOperation: PendingSync = { id: makeId('queue'), type: 'footprint-remove', payload: removePayload };
           if (state.isOnline && cloudReady) {
-            void removeFootprintFromSupabase(removePayload);
+            queueSyncOnFailure(removeFootprintFromSupabase(removePayload), () => get().addPendingSync(pendingOperation));
           } else if (!state.isOnline && cloudReady) {
-            get().addPendingSync({ id: makeId('queue'), type: 'footprint-remove', payload: removePayload });
+            get().addPendingSync(pendingOperation);
           }
           return;
         }
@@ -534,10 +576,11 @@ export const useMomDailyStore = create<Store>()(
           lastEvent: { id: footprint.id, tone: 'success', message: '已记下“' + province.name + '·' + city.name + '”' },
         }));
         const addPayload = { pairId, provinceCode: province.code, provinceName: province.name, cityCode: city.code, cityName: city.name, userId, visitedAt: footprint.visitedAt };
+        const pendingOperation: PendingSync = { id: makeId('queue'), type: 'footprint-add', payload: addPayload };
         if (state.isOnline && cloudReady) {
-          void syncFootprintToSupabase(addPayload);
+          queueSyncOnFailure(syncFootprintToSupabase(addPayload), () => get().addPendingSync(pendingOperation));
         } else if (!state.isOnline && cloudReady) {
-          get().addPendingSync({ id: makeId('queue'), type: 'footprint-add', payload: addPayload });
+          get().addPendingSync(pendingOperation);
         }
       },
       sendQuickMessage: (rawContent, actor = get().activeActor) => {
@@ -550,7 +593,7 @@ export const useMomDailyStore = create<Store>()(
         const toUserId = state.userIds[to];
         const cloudReady = !state.demoMode && isSupabaseConfigured && Boolean(pairId) && Boolean(userId) && Boolean(toUserId);
 
-        if (!pairId && !state.demoMode) {
+        if (!state.demoMode && (!pairId || !userId || !toUserId)) {
           set({ lastEvent: { id: makeId('quick-message-pair'), tone: 'neutral', message: '先完成双人绑定，再发送快捷消息' } });
           return;
         }
@@ -569,10 +612,11 @@ export const useMomDailyStore = create<Store>()(
           lastEvent: { id: message.id, tone: 'success', message: '快捷消息已发送' },
         }));
         const payload = { pairId, userId, toUserId, date: message.date, content };
+        const pendingOperation: PendingSync = { id: makeId('queue'), type: 'quick-message', payload };
         if (state.isOnline && cloudReady) {
-          void syncQuickMessageToSupabase(payload);
+          queueSyncOnFailure(syncQuickMessageToSupabase(payload), () => get().addPendingSync(pendingOperation));
         } else if (!state.isOnline && cloudReady) {
-          get().addPendingSync({ id: makeId('queue'), type: 'quick-message', payload });
+          get().addPendingSync(pendingOperation);
         }
       },
       clearEvent: () => set({ lastEvent: null }),

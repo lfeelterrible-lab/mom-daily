@@ -237,6 +237,7 @@ export default function TodayScreen() {
 
 function PersonProgress({ label, count, total, color, barColor }: { label: string; count: number; total: number; color: string; barColor: string }) {
   const { colors } = useAppTheme();
+  const width = `${Math.min(total, Math.max(0, count)) / total * 100}%` as `${number}%`;
   return (
     <View style={styles.personProgress}>
       <View style={styles.personProgressTop}>
@@ -244,7 +245,7 @@ function PersonProgress({ label, count, total, color, barColor }: { label: strin
         <Text style={[styles.personCount, { color: colors.ink }]}>{count} <Text style={{ color: colors.inkMuted, fontWeight: '600' }}>/ {total}</Text></Text>
       </View>
       <View style={[styles.barTrack, { backgroundColor: colors.line }]}>
-        <View style={[styles.barFill, { backgroundColor: barColor, width: ((count / total) * 100 + '%') as any }]} />
+        <View style={[styles.barFill, { backgroundColor: barColor, width }]} />
       </View>
     </View>
   );
