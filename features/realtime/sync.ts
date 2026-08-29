@@ -26,6 +26,14 @@ export type FootprintSyncPayload = {
   visitedAt: string;
 };
 
+export type QuickMessageSyncPayload = {
+  pairId: string;
+  userId: string;
+  toUserId: string;
+  date: string;
+  content: string;
+};
+
 export const syncCompletionToSupabase = async (payload: CompletionSyncPayload) => {
   if (!supabase || !isSupabaseConfigured) return false;
 
@@ -140,8 +148,21 @@ export const removeFootprintFromSupabase = async (payload: Pick<FootprintSyncPay
   return !error;
 };
 
+export const syncQuickMessageToSupabase = async (payload: QuickMessageSyncPayload) => {
+  if (!supabase || !isSupabaseConfigured) return false;
+  const { error } = await supabase.from('quick_messages').insert({
+    pair_id: payload.pairId,
+    from_user: payload.userId,
+    to_user: payload.toUserId,
+    date: payload.date,
+    content: payload.content,
+  });
+  if (error) console.warn('[MomDaily] quick message sync failed', error.message);
+  return !error;
+};
+
 export const flushPendingSync = async (
-  operations: Array<{ id: string; type: 'completion' | 'nudge' | 'reaction' | 'message' | 'footprint-add' | 'footprint-remove'; payload: Record<string, string | boolean> }>,
+  operations: Array<{ id: string; type: 'completion' | 'nudge' | 'reaction' | 'message' | 'footprint-add' | 'footprint-remove' | 'quick-message'; payload: Record<string, string | boolean> }>,
 ) => {
   if (!supabase || !isSupabaseConfigured) return [];
 
@@ -185,6 +206,14 @@ export const flushPendingSync = async (
         pairId: String(operation.payload.pairId),
         provinceCode: String(operation.payload.provinceCode),
         cityCode: String(operation.payload.cityCode),
+      });
+    } else if (operation.type === 'quick-message') {
+      synced = await syncQuickMessageToSupabase({
+        pairId: String(operation.payload.pairId),
+        userId: String(operation.payload.userId),
+        toUserId: String(operation.payload.toUserId),
+        date: String(operation.payload.date),
+        content: String(operation.payload.content),
       });
     } else {
       synced = await syncDailyMessageToSupabase({

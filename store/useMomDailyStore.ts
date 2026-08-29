@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { defaultHabits } from '@/constants/habits';
 import { getLocalDate } from '@/lib/date';
 import { DEMO_ME_ID, DEMO_MOM_ID, DEMO_PAIR_ID, isSupabaseConfigured } from '@/lib/supabase';
-import { removeFootprintFromSupabase, syncCompletionToSupabase, syncDailyMessageToSupabase, syncFootprintToSupabase, syncNudgeToSupabase, syncReactionToSupabase } from '@/features/realtime/sync';
+import { removeFootprintFromSupabase, syncCompletionToSupabase, syncDailyMessageToSupabase, syncFootprintToSupabase, syncNudgeToSupabase, syncQuickMessageToSupabase, syncReactionToSupabase } from '@/features/realtime/sync';
 import type { ThemeMode } from '@/constants/theme';
 
 export type Actor = 'me' | 'mom';
@@ -56,9 +56,19 @@ export type Footprint = {
   createdBy: Actor;
 };
 
+export type QuickMessage = {
+  id: string;
+  pairId: string;
+  from: Actor;
+  to: Actor;
+  content: string;
+  date: string;
+  createdAt: string;
+};
+
 export type PendingSync = {
   id: string;
-  type: 'completion' | 'nudge' | 'reaction' | 'message' | 'footprint-add' | 'footprint-remove';
+  type: 'completion' | 'nudge' | 'reaction' | 'message' | 'footprint-add' | 'footprint-remove' | 'quick-message';
   payload: Record<string, string | boolean>;
 };
 
@@ -92,6 +102,7 @@ type Store = {
   nudges: Nudge[];
   reactions: Reaction[];
   footprints: Footprint[];
+  quickMessages: QuickMessage[];
   pendingSync: PendingSync[];
   notificationSettings: {
     enabled: boolean;
@@ -113,6 +124,7 @@ type Store = {
   setCloudNudges: (nudges: Nudge[]) => void;
   setCloudReactions: (reactions: Reaction[]) => void;
   setCloudFootprints: (footprints: Footprint[]) => void;
+  setCloudQuickMessages: (messages: QuickMessage[]) => void;
   setNotification: (key: 'enabled' | 'morningReminder' | 'eveningReminder', value: boolean) => void;
   toggleCompletion: (habitId: string, actor?: Actor) => void;
   applyRemoteCompletion: (habitId: string, actor: Actor, completed: boolean, date?: string) => void;
@@ -122,9 +134,11 @@ type Store = {
   applyRemoteReaction: (reaction: Reaction) => void;
   applyRemoteFootprint: (footprint: Footprint) => void;
   removeRemoteFootprint: (provinceCode: string, cityCode: string) => void;
+  applyRemoteQuickMessage: (message: QuickMessage) => void;
   sendNudge: (habitId: string, actor?: Actor) => void;
   addReaction: (habitId: string, emoji: string, actor?: Actor) => void;
   toggleFootprint: (province: { code: string; name: string }, city: { code: string; name: string }) => void;
+  sendQuickMessage: (content: string, actor?: Actor) => void;
   clearEvent: () => void;
   addPendingSync: (operation: PendingSync) => void;
   removePendingSync: (id: string) => void;
@@ -224,6 +238,7 @@ const initialState = {
     { id: 'reaction-seed', habitId: 'breakfast', from: 'mom', to: 'me', emoji: '❤️', date: getLocalDate(), createdAt: nowIso() },
   ] as Reaction[],
   footprints: [] as Footprint[],
+  quickMessages: [] as QuickMessage[],
   pendingSync: [] as PendingSync[],
   notificationSettings: {
     enabled: true,
@@ -252,6 +267,7 @@ export const useMomDailyStore = create<Store>()(
       setCloudNudges: (nudges) => set({ nudges }),
       setCloudReactions: (reactions) => set({ reactions }),
       setCloudFootprints: (footprints) => set({ footprints }),
+      setCloudQuickMessages: (quickMessages) => set({ quickMessages }),
       setNotification: (key, value) =>
         set((state) => ({
           notificationSettings: { ...state.notificationSettings, [key]: value },
@@ -419,6 +435,19 @@ export const useMomDailyStore = create<Store>()(
       removeRemoteFootprint: (provinceCode, cityCode) => {
         set((state) => ({ footprints: state.footprints.filter((item) => footprintKey(item.provinceCode, item.cityCode) !== footprintKey(provinceCode, cityCode)) }));
       },
+      applyRemoteQuickMessage: (message) => {
+        set((state) => {
+          if (state.quickMessages.some((item) => item.id === message.id)) return state;
+          return {
+            quickMessages: [...state.quickMessages, message],
+            lastEvent: {
+              id: makeId('remote-quick-message'),
+              tone: 'success',
+              message: (message.from === 'mom' ? '妈妈' : '我') + '发来消息：“' + message.content + '”',
+            },
+          };
+        });
+      },
       sendNudge: (habitId, actor = get().activeActor) => {
         const date = getLocalDate();
         const to: Actor = actor === 'me' ? 'mom' : 'me';
@@ -507,6 +536,41 @@ export const useMomDailyStore = create<Store>()(
           get().addPendingSync({ id: makeId('queue'), type: 'footprint-add', payload: addPayload });
         }
       },
+      sendQuickMessage: (rawContent, actor = get().activeActor) => {
+        const content = rawContent.trim().slice(0, 40);
+        if (!content) return;
+        const state = get();
+        const pairId = state.pairId;
+        const to: Actor = actor === 'me' ? 'mom' : 'me';
+        const userId = state.userIds[actor];
+        const toUserId = state.userIds[to];
+        const cloudReady = !state.demoMode && isSupabaseConfigured && Boolean(pairId) && Boolean(userId) && Boolean(toUserId);
+
+        if (!pairId && !state.demoMode) {
+          set({ lastEvent: { id: makeId('quick-message-pair'), tone: 'neutral', message: '先完成双人绑定，再发送快捷消息' } });
+          return;
+        }
+
+        const message: QuickMessage = {
+          id: makeId('quick-message'),
+          pairId,
+          from: actor,
+          to,
+          content,
+          date: getLocalDate(),
+          createdAt: nowIso(),
+        };
+        set((current) => ({
+          quickMessages: [...current.quickMessages, message],
+          lastEvent: { id: message.id, tone: 'success', message: '快捷消息已发送' },
+        }));
+        const payload = { pairId, userId, toUserId, date: message.date, content };
+        if (state.isOnline && cloudReady) {
+          void syncQuickMessageToSupabase(payload);
+        } else if (!state.isOnline && cloudReady) {
+          get().addPendingSync({ id: makeId('queue'), type: 'quick-message', payload });
+        }
+      },
       clearEvent: () => set({ lastEvent: null }),
       addPendingSync: (operation) => set((state) => ({ pendingSync: [...state.pendingSync, operation] })),
       removePendingSync: (id) => set((state) => ({ pendingSync: state.pendingSync.filter((item) => item.id !== id) })),
@@ -522,6 +586,7 @@ export const useMomDailyStore = create<Store>()(
           nudges: [],
           reactions: [],
           footprints: [],
+          quickMessages: [],
           pendingSync: [],
           lastEvent: { id: makeId('reset'), tone: 'neutral', message: 'Demo 已恢复到今天的示例状态' },
         }),

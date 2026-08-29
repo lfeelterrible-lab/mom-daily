@@ -5,7 +5,7 @@ import { getPairMembers, mapPairMembers, type PairMember } from '@/features/pair
 import { addLocalDays } from '@/lib/date';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { useMomDailyStore, type Actor, type CompletionByDate, type DailyMessagesByDate, type Footprint, type Nudge, type Reaction } from '@/store/useMomDailyStore';
+import { useMomDailyStore, type Actor, type CompletionByDate, type DailyMessagesByDate, type Footprint, type Nudge, type QuickMessage, type Reaction } from '@/store/useMomDailyStore';
 
 const buildCloudCompletions = (rows: Array<{ habit_id: string; user_id: string; date: string; completed_at: string }>, userIds: { me: string; mom: string }): CompletionByDate => {
   const completions: CompletionByDate = {};
@@ -67,6 +67,15 @@ const buildCloudFootprints = (
   }] : [];
 });
 
+const buildCloudQuickMessages = (
+  rows: Array<{ id: string; pair_id: string; from_user: string; to_user: string; content: string; date: string; created_at: string }>,
+  userIds: { me: string; mom: string },
+): QuickMessage[] => rows.flatMap((row) => {
+  const from: Actor | null = row.from_user === userIds.me ? 'me' : row.from_user === userIds.mom ? 'mom' : null;
+  const to: Actor | null = row.to_user === userIds.me ? 'me' : row.to_user === userIds.mom ? 'mom' : null;
+  return from && to ? [{ id: row.id, pairId: row.pair_id, from, to, content: row.content, date: row.date, createdAt: row.created_at }] : [];
+});
+
 export const useCloudBootstrap = () => {
   const demoMode = useMomDailyStore((state) => state.demoMode);
   const activeActor = useMomDailyStore((state) => state.activeActor);
@@ -77,6 +86,7 @@ export const useCloudBootstrap = () => {
   const setCloudNudges = useMomDailyStore((state) => state.setCloudNudges);
   const setCloudReactions = useMomDailyStore((state) => state.setCloudReactions);
   const setCloudFootprints = useMomDailyStore((state) => state.setCloudFootprints);
+  const setCloudQuickMessages = useMomDailyStore((state) => state.setCloudQuickMessages);
   const date = useLocalDate();
 
   useEffect(() => {
@@ -196,6 +206,18 @@ export const useCloudBootstrap = () => {
         connection.userIds,
       ));
 
+      const quickMessagesResult = await client
+        .from('quick_messages')
+        .select('id, pair_id, from_user, to_user, content, date, created_at')
+        .eq('pair_id', targetPairId)
+        .eq('date', date)
+        .order('created_at', { ascending: true });
+      if (cancelled || quickMessagesResult.error) return;
+      setCloudQuickMessages(buildCloudQuickMessages(
+        (quickMessagesResult.data ?? []) as Array<{ id: string; pair_id: string; from_user: string; to_user: string; content: string; date: string; created_at: string }>,
+        connection.userIds,
+      ));
+
       const footprintsResult = await client
         .from('travel_footprints')
         .select('id, pair_id, province_code, province_name, city_code, city_name, created_by, visited_at')
@@ -221,5 +243,5 @@ export const useCloudBootstrap = () => {
       clearInterval(refreshTimer);
       if (memberChannel) void client.removeChannel(memberChannel);
     };
-  }, [activeActor, date, demoMode, pairId, setCloudCompletions, setCloudDailyMessages, setCloudFootprints, setCloudNudges, setCloudReactions, setPairConnection]);
+  }, [activeActor, date, demoMode, pairId, setCloudCompletions, setCloudDailyMessages, setCloudFootprints, setCloudNudges, setCloudQuickMessages, setCloudReactions, setPairConnection]);
 };

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 import { useLocalDate } from '@/hooks/useLocalDate';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { useMomDailyStore, type Actor, type Nudge, type Reaction } from '@/store/useMomDailyStore';
+import { useMomDailyStore, type Actor, type Nudge, type QuickMessage, type Reaction } from '@/store/useMomDailyStore';
 
 const actorForUserId = (userId: string, userIds: { me: string; mom: string }): Actor | null => {
   if (userId === userIds.me) return 'me';
@@ -14,6 +14,7 @@ export const useRealtimeInteractions = () => {
   const activeActor = useMomDailyStore((state) => state.activeActor);
   const applyRemoteNudge = useMomDailyStore((state) => state.applyRemoteNudge);
   const applyRemoteReaction = useMomDailyStore((state) => state.applyRemoteReaction);
+  const applyRemoteQuickMessage = useMomDailyStore((state) => state.applyRemoteQuickMessage);
   const pairId = useMomDailyStore((state) => state.pairId);
   const userIds = useMomDailyStore((state) => state.userIds);
   const demoMode = useMomDailyStore((state) => state.demoMode);
@@ -92,10 +93,44 @@ export const useRealtimeInteractions = () => {
           applyRemoteReaction(reaction);
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'quick_messages',
+          filter: 'pair_id=eq.' + pairId,
+        },
+        (payload) => {
+          const record = payload.new as {
+            id?: string;
+            pair_id?: string;
+            from_user?: string;
+            to_user?: string;
+            content?: string;
+            date?: string;
+            created_at?: string;
+          };
+          if (!record.id || !record.from_user || !record.content || record.to_user !== currentUserId || record.date !== date) return;
+          const from = actorForUserId(record.from_user, userIds);
+          const to = actorForUserId(record.to_user, userIds);
+          if (!from || !to || from === activeActor) return;
+          const message: QuickMessage = {
+            id: record.id,
+            pairId,
+            from,
+            to,
+            content: record.content,
+            date: record.date,
+            createdAt: record.created_at ?? new Date().toISOString(),
+          };
+          applyRemoteQuickMessage(message);
+        },
+      )
       .subscribe();
 
     return () => {
       void client.removeChannel(channel);
     };
-  }, [activeActor, applyRemoteNudge, applyRemoteReaction, date, demoMode, pairId, userIds]);
+  }, [activeActor, applyRemoteNudge, applyRemoteQuickMessage, applyRemoteReaction, date, demoMode, pairId, userIds]);
 };

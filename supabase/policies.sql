@@ -108,6 +108,18 @@ drop policy if exists "pair members remove travel footprints" on public.travel_f
 create policy "pair members remove travel footprints" on public.travel_footprints
   for delete using (public.is_pair_member(pair_id));
 
+drop policy if exists "pair members read quick messages" on public.quick_messages;
+create policy "pair members read quick messages" on public.quick_messages
+  for select using (public.is_pair_member(pair_id));
+
+drop policy if exists "pair members send quick messages" on public.quick_messages;
+create policy "pair members send quick messages" on public.quick_messages
+  for insert with check (
+    from_user = auth.uid()
+    and public.is_pair_member(pair_id)
+    and exists (select 1 from public.profiles where profiles.id = quick_messages.to_user and profiles.pair_id = quick_messages.pair_id)
+  );
+
 drop policy if exists "pair members read reactions" on public.reactions;
 create policy "pair members read reactions" on public.reactions
   for select using (public.is_pair_member(pair_id));

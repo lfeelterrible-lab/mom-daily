@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DailyHabitCard } from '@/components/DailyHabitCard';
 import { DailyInteractionCard } from '@/components/DailyInteractionCard';
 import { DailyMessageCard } from '@/components/DailyMessageCard';
+import { QuickMessageCard } from '@/components/QuickMessageCard';
 import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { ReactionPicker } from '@/components/ReactionPicker';
 import { SharedProgressRing } from '@/components/SharedProgressRing';
@@ -33,19 +34,24 @@ export default function TodayScreen() {
   const activeActor = useMomDailyStore((state) => state.activeActor);
   const demoMode = useMomDailyStore((state) => state.demoMode);
   const displayNames = useMomDailyStore((state) => state.displayNames);
+  const pairMemberCount = useMomDailyStore((state) => state.pairMemberCount);
+  const userIds = useMomDailyStore((state) => state.userIds);
   const pairPresence = useMomDailyStore((state) => state.pairPresence);
   const isOnline = useMomDailyStore((state) => state.isOnline);
   const nudges = useMomDailyStore((state) => state.nudges);
   const reactions = useMomDailyStore((state) => state.reactions);
+  const quickMessages = useMomDailyStore((state) => state.quickMessages);
   const toggleCompletion = useMomDailyStore((state) => state.toggleCompletion);
   const sendNudge = useMomDailyStore((state) => state.sendNudge);
   const addReaction = useMomDailyStore((state) => state.addReaction);
   const saveDailyMessage = useMomDailyStore((state) => state.saveDailyMessage);
+  const sendQuickMessage = useMomDailyStore((state) => state.sendQuickMessage);
   const [reactionHabit, setReactionHabit] = useState<Habit | null>(null);
 
   const summary = useMemo(() => getDaySummary(completions, date), [completions, date]);
   const currentStreak = useMemo(() => getCurrentSharedStreak(completions, date), [completions, date]);
   const longestStreak = useMemo(() => getLongestSharedStreak(completions), [completions]);
+  const pairConnected = demoMode || (pairMemberCount >= 2 && Boolean(userIds.me) && Boolean(userIds.mom));
   const hasIncomingInteractions = useMemo(
     () => nudges.some((item) => item.date === date && item.to === activeActor) || reactions.some((item) => item.date === date && item.to === activeActor),
     [activeActor, date, nudges, reactions],
@@ -125,6 +131,18 @@ export default function TodayScreen() {
               activeActor={activeActor}
               displayNames={displayNames}
               onSave={saveDailyMessage}
+            />
+          </View>
+
+          <View style={styles.messageSpacing}>
+            <QuickMessageCard
+              date={date}
+              messages={quickMessages}
+              activeActor={activeActor}
+              displayNames={displayNames}
+              pairConnected={pairConnected}
+              isOnline={isOnline}
+              onSend={sendQuickMessage}
             />
           </View>
 
