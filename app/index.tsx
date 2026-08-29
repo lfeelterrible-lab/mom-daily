@@ -93,39 +93,45 @@ export default function OnboardingScreen() {
     if (!demoMode && isSupabaseConfigured) {
       setSetupError('');
       setIsConnecting(true);
-      const sessionResult = await ensureSession();
-      const currentUserId = sessionResult.data.session?.user.id;
-      if (sessionResult.error || !currentUserId) {
-        setSetupError('暂时连接不上服务，请检查 Supabase Auth 设置');
-        setIsConnecting(false);
-        return;
-      }
+      try {
+        const sessionResult = await ensureSession();
+        const currentUserId = sessionResult.data.session?.user.id;
+        if (sessionResult.error || !currentUserId) {
+          setSetupError('暂时连接不上服务，请检查 Supabase Auth 设置');
+          setIsConnecting(false);
+          return;
+        }
 
-      const pairResult = setupMode === 'start'
-        ? await createPair(actorDisplayName(chosenActor))
-        : await joinPair(normalizedInviteCode, actorDisplayName(chosenActor));
-      const pair = pairResult.data as { id?: string; invite_code?: string } | null;
-      if (pairResult.error || !pair?.id) {
-        setSetupError(pairResult.error?.message ?? '邀请码无效或家庭已经满员');
-        setIsConnecting(false);
-        return;
-      }
+        const pairResult = setupMode === 'start'
+          ? await createPair(actorDisplayName(chosenActor))
+          : await joinPair(normalizedInviteCode, actorDisplayName(chosenActor));
+        const pair = pairResult.data as { id?: string; invite_code?: string } | null;
+        if (pairResult.error || !pair?.id) {
+          setSetupError(pairResult.error?.message ?? '邀请码无效或家庭已经满员');
+          setIsConnecting(false);
+          return;
+        }
 
-      const membersResult = await getPairMembers(pair.id);
-      if (membersResult.error) {
-        setSetupError('家庭已创建，但暂时读取不到成员状态，请稍后重试');
+        const membersResult = await getPairMembers(pair.id);
+        if (membersResult.error) {
+          setSetupError('家庭已创建，但暂时读取不到成员状态，请稍后重试');
+          setIsConnecting(false);
+          return;
+        }
+        const members = (membersResult.data ?? []) as PairMember[];
+        const connection = mapPairMembers(members, currentUserId, chosenActor);
+        setPairConnection({
+          pairId: pair.id,
+          inviteCode: pair.invite_code ?? normalizedInviteCode,
+          memberCount: members.length,
+          ...connection,
+        });
+        setIsConnecting(false);
+      } catch {
+        setSetupError('暂时连接不上服务，请稍后重试');
         setIsConnecting(false);
         return;
       }
-      const members = (membersResult.data ?? []) as PairMember[];
-      const connection = mapPairMembers(members, currentUserId, chosenActor);
-      setPairConnection({
-        pairId: pair.id,
-        inviteCode: pair.invite_code ?? normalizedInviteCode,
-        memberCount: members.length,
-        ...connection,
-      });
-      setIsConnecting(false);
     }
 
     setHasSeenOnboarding(true);
