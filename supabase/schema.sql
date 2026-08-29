@@ -288,6 +288,8 @@ set search_path = public
 as $$
 declare
   current_profile public.profiles;
+  target_profile public.profiles;
+  previous_display_name text;
   updated_profile public.profiles;
 begin
   if auth.uid() is null then
@@ -301,13 +303,21 @@ begin
   if current_profile.pair_id is null then
     raise exception 'Pair required';
   end if;
-  if exists (
-    select 1 from public.profiles
+
+  previous_display_name := current_profile.display_name;
+  if previous_display_name <> input_display_name then
+    select * into target_profile
+    from public.profiles
     where pair_id = current_profile.pair_id
       and id <> auth.uid()
       and display_name = input_display_name
-  ) then
-    raise exception 'This identity is already selected';
+    for update;
+
+    if target_profile.id is not null and previous_display_name in ('我', '妈妈') then
+      update public.profiles
+      set display_name = previous_display_name
+      where id = target_profile.id;
+    end if;
   end if;
 
   update public.profiles

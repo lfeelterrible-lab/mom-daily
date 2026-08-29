@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SharedProgressRing } from '@/components/SharedProgressRing';
+import { DailyMessageCard } from '@/components/DailyMessageCard';
 import { defaultHabits } from '@/constants/habits';
 import { getCompletion, getCompletionLevel, getDaySummary } from '@/features/streak/streak';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -17,6 +18,9 @@ export default function CalendarScreen() {
   const { colors } = useAppTheme();
   const today = useLocalDate();
   const completions = useMomDailyStore((state) => state.completions);
+  const dailyMessages = useMomDailyStore((state) => state.dailyMessages);
+  const activeActor = useMomDailyStore((state) => state.activeActor);
+  const displayNames = useMomDailyStore((state) => state.displayNames);
   const [selectedDate, setSelectedDate] = useState(today);
   const currentYear = today.slice(0, 4);
   const calendarStartMonth = currentYear + '-01-01';
@@ -176,6 +180,16 @@ export default function CalendarScreen() {
           {selectedSummary.isFullComplete ? <Ionicons name="sparkles-outline" color={colors.sun} size={20} style={styles.summarySparkle} /> : null}
         </View>
 
+        <View style={styles.messageHistory}>
+          <DailyMessageCard
+            messages={dailyMessages[selectedDate] ?? {}}
+            activeActor={activeActor}
+            displayNames={displayNames}
+            readOnly
+            onSave={() => undefined}
+          />
+        </View>
+
         <View style={[styles.detailCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           {defaultHabits.map((habit, index) => {
             const completion = getCompletion(completions, selectedDate, habit.id);
@@ -247,6 +261,7 @@ const styles = StyleSheet.create({
   actorCount: { fontSize: 11, fontWeight: '800' },
   dotDivider: { width: 3, height: 3, borderRadius: 2 },
   summarySparkle: { position: 'absolute', right: 17, top: 17 },
+  messageHistory: { marginTop: 13 },
   detailCard: { marginTop: 13, borderRadius: 21, borderWidth: 1, paddingHorizontal: 14, paddingTop: 3, paddingBottom: 12 },
   detailRow: { minHeight: 47, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center' },
   lastDetailRow: { borderBottomWidth: 0 },

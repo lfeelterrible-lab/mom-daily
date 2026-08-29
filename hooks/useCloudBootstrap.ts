@@ -5,7 +5,7 @@ import { getPairMembers, mapPairMembers, type PairMember } from '@/features/pair
 import { addLocalDays } from '@/lib/date';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { useMomDailyStore, type Actor, type CompletionByDate, type DailyMessage } from '@/store/useMomDailyStore';
+import { useMomDailyStore, type Actor, type CompletionByDate, type DailyMessage, type DailyMessagesByDate } from '@/store/useMomDailyStore';
 
 const buildCloudCompletions = (rows: Array<{ habit_id: string; user_id: string; date: string; completed_at: string }>, userIds: { me: string; mom: string }): CompletionByDate => {
   const completions: CompletionByDate = {};
@@ -20,14 +20,14 @@ const buildCloudCompletions = (rows: Array<{ habit_id: string; user_id: string; 
 };
 
 const buildCloudDailyMessages = (
-  rows: Array<{ user_id: string; content: string; updated_at: string }>,
+  rows: Array<{ user_id: string; date: string; content: string; updated_at: string }>,
   userIds: { me: string; mom: string },
-): Partial<Record<Actor, DailyMessage>> => {
-  const messages: Partial<Record<Actor, DailyMessage>> = {};
+): DailyMessagesByDate => {
+  const messages: DailyMessagesByDate = {};
   rows.forEach((row) => {
     const actor: Actor | null = row.user_id === userIds.me ? 'me' : row.user_id === userIds.mom ? 'mom' : null;
     if (!actor) return;
-    messages[actor] = { content: row.content, updatedAt: row.updated_at };
+    messages[row.date] = { ...(messages[row.date] ?? {}), [actor]: { content: row.content, updatedAt: row.updated_at } };
   });
   return messages;
 };
@@ -116,14 +116,23 @@ export const useCloudBootstrap = () => {
       if (cancelled) return;
       setCloudCompletions(buildCloudCompletions(completionRows, connection.userIds));
 
-      const messagesResult = await client
-        .from('daily_messages')
-        .select('user_id, content, updated_at')
-        .eq('pair_id', targetPairId)
-        .eq('date', date);
-      if (cancelled || messagesResult.error) return;
-      const messageRows = (messagesResult.data ?? []) as Array<{ user_id: string; content: string; updated_at: string }>;
-      setCloudDailyMessages(date, buildCloudDailyMessages(messageRows, connection.userIds));
+      const messageRows: Array<{ user_id: string; date: string; content: string; updated_at: string }> = [];
+      for (let page = 0; ; page += 1) {
+        const messagesResult = await client
+          .from('daily_messages')
+          .select('user_id, date, content, updated_at')
+          .eq('pair_id', targetPairId)
+          .gte('date', startDate)
+          .lte('date', date)
+          .order('date', { ascending: true })
+          .range(page * pageSize, page * pageSize + pageSize - 1);
+        if (cancelled || messagesResult.error) return;
+        const rows = (messagesResult.data ?? []) as Array<{ user_id: string; date: string; content: string; updated_at: string }>;
+        messageRows.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+      if (cancelled) return;
+      setCloudDailyMessages(buildCloudDailyMessages(messageRows, connection.userIds));
     };
 
     void load();

@@ -97,7 +97,7 @@ type Store = {
   setPairConnection: (connection: { pairId: string; inviteCode: string; displayNames: { me: string; mom: string }; userIds: { me: string; mom: string }; memberCount?: number; activeActor?: Actor }) => void;
   setPairPresence: (presence: PairPresence) => void;
   setCloudCompletions: (completions: CompletionByDate) => void;
-  setCloudDailyMessages: (date: string, messages: Partial<Record<Actor, DailyMessage>>) => void;
+  setCloudDailyMessages: (messages: DailyMessagesByDate) => void;
   setNotification: (key: 'enabled' | 'morningReminder' | 'eveningReminder', value: boolean) => void;
   toggleCompletion: (habitId: string, actor?: Actor) => void;
   applyRemoteCompletion: (habitId: string, actor: Actor, completed: boolean, date?: string) => void;
@@ -226,8 +226,7 @@ export const useMomDailyStore = create<Store>()(
         set({ pairId, inviteCode, displayNames, userIds, ...(memberCount !== undefined ? { pairMemberCount: memberCount } : {}), ...(activeActor ? { activeActor } : {}) }),
       setPairPresence: (pairPresence) => set({ pairPresence }),
       setCloudCompletions: (completions) => set({ completions }),
-      setCloudDailyMessages: (date, messages) =>
-        set((state) => ({ dailyMessages: { ...state.dailyMessages, [date]: messages } })),
+      setCloudDailyMessages: (dailyMessages) => set({ dailyMessages }),
       setNotification: (key, value) =>
         set((state) => ({
           notificationSettings: { ...state.notificationSettings, [key]: value },

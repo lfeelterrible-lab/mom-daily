@@ -48,6 +48,7 @@ export default function FamilyScreen() {
   const [identityError, setIdentityError] = useState('');
   const [identityMessage, setIdentityMessage] = useState('');
   const [isUpdatingIdentity, setIsUpdatingIdentity] = useState(false);
+  const [identityPickerOpen, setIdentityPickerOpen] = useState(false);
   const pairConnected = demoMode || (pairMemberCount >= 2 && Boolean(userIds.me) && Boolean(userIds.mom));
 
   useEffect(() => {
@@ -155,13 +156,7 @@ export default function FamilyScreen() {
       setIsUpdatingIdentity(false);
       return;
     }
-    const other = members.find((member) => member.id !== currentUserId);
     const targetName = actorDisplayName(actor);
-    if (other?.display_name === targetName) {
-      setIdentityError('对方已经选择“' + targetName + '”，请各自选择不同身份');
-      setIsUpdatingIdentity(false);
-      return;
-    }
 
     const updateResult = await updatePairIdentity(actor);
     if (updateResult.error) {
@@ -185,6 +180,7 @@ export default function FamilyScreen() {
       ...connection,
     });
     setIdentityMessage('已设置为“' + targetName + '”');
+    setIdentityPickerOpen(false);
     setIsUpdatingIdentity(false);
   };
 
@@ -253,31 +249,54 @@ export default function FamilyScreen() {
             <>
               <View style={styles.sectionLabel}>
                 <Text style={[styles.sectionTitle, { color: colors.ink }]}>我的身份</Text>
-                <Text style={[styles.sectionSubtitle, { color: colors.inkMuted }]}>两个人各自选一次，避免显示为“我 + 我”</Text>
+                <Text style={[styles.sectionSubtitle, { color: colors.inkMuted }]}>选错了，可以在这里重新选择</Text>
               </View>
               <View style={[styles.identityCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-                <Text style={[styles.identityPrompt, { color: colors.ink }]}>在这个家庭里，我是：</Text>
-                <View style={styles.identityChoiceRow}>
-                  {(['me', 'mom'] as Actor[]).map((actor) => {
-                    const selected = activeActor === actor;
-                    return (
-                      <Pressable
-                        key={actor}
-                        disabled={isUpdatingIdentity}
-                        onPress={() => void chooseIdentity(actor)}
-                        accessibilityRole="button"
-                        style={[styles.identityChoice, { backgroundColor: selected ? colors.surfaceGreen : colors.surfaceMuted, borderColor: selected ? colors.success : 'transparent', opacity: isUpdatingIdentity ? 0.7 : 1 }]}
-                      >
-                        <Text style={styles.identityChoiceEmoji}>{actor === 'me' ? '👦' : '👩'}</Text>
-                        <Text style={[styles.identityChoiceText, { color: colors.ink }]}>我是{actorDisplayName(actor)}</Text>
-                        {selected ? <Ionicons name="checkmark-circle" color={colors.success} size={16} /> : null}
-                      </Pressable>
-                    );
-                  })}
+                <View style={styles.identityCurrentRow}>
+                  <View style={styles.identityCurrentCopy}>
+                    <Text style={[styles.identityPrompt, { color: colors.ink }]}>当前身份</Text>
+                    <Text style={[styles.identityCurrent, { color: colors.success }]}>我是{actorDisplayName(activeActor)}</Text>
+                  </View>
+                  {!identityPickerOpen ? (
+                    <Pressable
+                      onPress={() => { setIdentityPickerOpen(true); setIdentityError(''); setIdentityMessage(''); }}
+                      accessibilityRole="button"
+                      style={({ pressed }) => [styles.reselectButton, { backgroundColor: colors.surfaceGreen, opacity: pressed ? 0.72 : 1 }]}
+                    >
+                      <Ionicons name="swap-horizontal-outline" color={colors.accent} size={15} />
+                      <Text style={[styles.reselectText, { color: colors.accent }]}>重新选择身份</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
+                {identityPickerOpen ? (
+                  <>
+                    <Text style={[styles.identityPickerHint, { color: colors.inkMuted }]}>请选择这台手机代表谁。若对方已经占用该身份，系统会自动交换两人的身份，历史记录不会丢失。</Text>
+                    <View style={styles.identityChoiceRow}>
+                      {(['me', 'mom'] as Actor[]).map((actor) => {
+                        const selected = activeActor === actor;
+                        return (
+                          <Pressable
+                            key={actor}
+                            disabled={isUpdatingIdentity}
+                            onPress={() => void chooseIdentity(actor)}
+                            accessibilityRole="button"
+                            style={[styles.identityChoice, { backgroundColor: selected ? colors.surfaceGreen : colors.surfaceMuted, borderColor: selected ? colors.success : 'transparent', opacity: isUpdatingIdentity ? 0.7 : 1 }]}
+                          >
+                            <Text style={styles.identityChoiceEmoji}>{actor === 'me' ? '👦' : '👩'}</Text>
+                            <Text style={[styles.identityChoiceText, { color: colors.ink }]}>我是{actorDisplayName(actor)}</Text>
+                            {selected ? <Ionicons name="checkmark-circle" color={colors.success} size={16} /> : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <Pressable onPress={() => { setIdentityPickerOpen(false); setIdentityError(''); setIdentityMessage(''); }} disabled={isUpdatingIdentity} accessibilityRole="button" style={styles.cancelIdentityButton}>
+                      <Text style={[styles.cancelIdentityText, { color: colors.inkMuted }]}>暂不更换</Text>
+                    </Pressable>
+                  </>
+                ) : null}
                 {identityError ? <Text style={[styles.identityError, { color: colors.accent }]}>{identityError}</Text> : null}
                 {identityMessage ? <Text style={[styles.identityMessage, { color: colors.success }]}>{identityMessage}</Text> : null}
-                <Text style={[styles.identityHint, { color: colors.inkMuted }]}>点错了不需要重新绑定，直接点另一项即可切换。</Text>
+                {!identityPickerOpen ? <Text style={[styles.identityHint, { color: colors.inkMuted }]}>点错了不需要重新绑定，点上面的按钮即可重新选择。</Text> : null}
               </View>
             </>
           ) : null}
@@ -510,6 +529,14 @@ const styles = StyleSheet.create({
   shareTitle: { fontSize: 13, fontWeight: '900' },
   shareText: { fontSize: 10, lineHeight: 15, fontWeight: '600' },
   identityCard: { borderWidth: 1, borderRadius: 21, padding: 15 },
+  identityCurrentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  identityCurrentCopy: { flex: 1, gap: 3 },
+  identityCurrent: { fontSize: 15, fontWeight: '900' },
+  reselectButton: { minHeight: 35, borderRadius: 11, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  reselectText: { fontSize: 11, fontWeight: '900' },
+  identityPickerHint: { fontSize: 10, lineHeight: 15, fontWeight: '600', marginTop: 12 },
+  cancelIdentityButton: { alignItems: 'center', paddingTop: 11 },
+  cancelIdentityText: { fontSize: 11, fontWeight: '800' },
   identityPrompt: { fontSize: 12, fontWeight: '900' },
   identityChoiceRow: { flexDirection: 'row', gap: 9, marginTop: 12 },
   identityChoice: { flex: 1, minHeight: 44, borderRadius: 13, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 8 },

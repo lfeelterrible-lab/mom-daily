@@ -10,11 +10,12 @@ type Props = {
   activeActor: Actor;
   displayNames: { me: string; mom: string };
   onSave: (content: string) => void;
+  readOnly?: boolean;
 };
 
 const avatarFor = (actor: Actor) => (actor === 'me' ? '👦' : '👩');
 
-export function DailyMessageCard({ messages, activeActor, displayNames, onSave }: Props) {
+export function DailyMessageCard({ messages, activeActor, displayNames, onSave, readOnly = false }: Props) {
   const { colors } = useAppTheme();
   const [editing, setEditing] = useState(false);
   const ownMessage = messages[activeActor];
@@ -46,11 +47,11 @@ export function DailyMessageCard({ messages, activeActor, displayNames, onSave }
         </View>
         <View style={styles.headerCopy}>
           <Text style={[styles.title, { color: colors.ink }]}>每日寄语</Text>
-          <Text style={[styles.subtitle, { color: colors.inkMuted }]}>今天，留一句给对方</Text>
+          <Text style={[styles.subtitle, { color: colors.inkMuted }]}>{readOnly ? '当天留下的两句话' : '今天，留一句给对方'}</Text>
         </View>
         <View style={[styles.livePill, { backgroundColor: colors.surfaceMuted }]}>
-          <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
-          <Text style={[styles.liveText, { color: colors.inkMuted }]}>实时同步</Text>
+          <View style={[styles.liveDot, { backgroundColor: readOnly ? colors.inkSoft : colors.success }]} />
+          <Text style={[styles.liveText, { color: colors.inkMuted }]}>{readOnly ? '历史记录' : '实时同步'}</Text>
         </View>
       </View>
 
@@ -58,18 +59,20 @@ export function DailyMessageCard({ messages, activeActor, displayNames, onSave }
         actor={activeActor}
         label={displayNames[activeActor]}
         message={ownMessage?.content}
-        editable
-        editing={editing}
+        editable={!readOnly}
+        editing={!readOnly && editing}
         draft={draft}
         onChangeDraft={setDraft}
-        onEdit={() => setEditing(true)}
+        onEdit={() => { if (!readOnly) setEditing(true); }}
         onCancel={cancelEditing}
-        onSave={save}
+        onSave={() => { if (!readOnly) save(); }}
         onClear={() => {
+          if (readOnly) return;
           onSave('');
           setDraft('');
           setEditing(false);
         }}
+        emptyText={readOnly ? '当天还没有留下寄语' : '今天想留一句话吗？'}
       />
 
       <View style={[styles.divider, { backgroundColor: colors.line }]} />
@@ -86,6 +89,7 @@ export function DailyMessageCard({ messages, activeActor, displayNames, onSave }
         onCancel={() => undefined}
         onSave={() => undefined}
         onClear={() => undefined}
+        emptyText="当天还没有留下寄语"
       />
     </View>
   );
@@ -103,9 +107,10 @@ type MessageLineProps = {
   onCancel: () => void;
   onSave: () => void;
   onClear: () => void;
+  emptyText: string;
 };
 
-function MessageLine({ actor, label, message, editable, editing, draft, onChangeDraft, onEdit, onCancel, onSave, onClear }: MessageLineProps) {
+function MessageLine({ actor, label, message, editable, editing, draft, onChangeDraft, onEdit, onCancel, onSave, onClear, emptyText }: MessageLineProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -161,7 +166,7 @@ function MessageLine({ actor, label, message, editable, editing, draft, onChange
         ) : (
           <View style={styles.readRow}>
             <Text style={[styles.message, { color: message ? colors.ink : colors.inkMuted }]} numberOfLines={3}>
-              {message ? '“' + message + '”' : editable ? '今天想留一句话吗？' : 'TA 今天还没有留下寄语'}
+              {message ? '“' + message + '”' : emptyText}
             </Text>
             {editable ? (
               <Pressable
