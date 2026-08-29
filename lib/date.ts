@@ -1,4 +1,4 @@
-import { addDays, format, getDay, startOfWeek } from 'date-fns';
+import { addDays, differenceInDays, differenceInHours, differenceInMinutes, format, getDay, startOfWeek } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 const pad = (value: number) => String(value).padStart(2, '0');
@@ -44,6 +44,15 @@ export const getGreeting = (value: Date = new Date()): string => {
   if (hour < 11) return '早上好';
   if (hour < 18) return '下午好';
   return '晚上好';
+};
+
+export const formatRelativeTime = (value: string): string => {
+  const minutes = Math.max(0, differenceInMinutes(new Date(), new Date(value)));
+  if (minutes < 1) return '刚刚';
+  if (minutes < 60) return minutes + ' 分钟前';
+  const hours = differenceInHours(new Date(), new Date(value));
+  if (hours < 24) return hours + ' 小时前';
+  return differenceInDays(new Date(), new Date(value)) + ' 天前';
 };
 
 export const getWeekDates = (value: string): string[] => {

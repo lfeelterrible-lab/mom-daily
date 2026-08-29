@@ -5,6 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions,
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DailyHabitCard } from '@/components/DailyHabitCard';
+import { DailyInteractionCard } from '@/components/DailyInteractionCard';
 import { DailyMessageCard } from '@/components/DailyMessageCard';
 import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { ReactionPicker } from '@/components/ReactionPicker';
@@ -34,6 +35,8 @@ export default function TodayScreen() {
   const displayNames = useMomDailyStore((state) => state.displayNames);
   const pairPresence = useMomDailyStore((state) => state.pairPresence);
   const isOnline = useMomDailyStore((state) => state.isOnline);
+  const nudges = useMomDailyStore((state) => state.nudges);
+  const reactions = useMomDailyStore((state) => state.reactions);
   const toggleCompletion = useMomDailyStore((state) => state.toggleCompletion);
   const sendNudge = useMomDailyStore((state) => state.sendNudge);
   const addReaction = useMomDailyStore((state) => state.addReaction);
@@ -43,6 +46,10 @@ export default function TodayScreen() {
   const summary = useMemo(() => getDaySummary(completions, date), [completions, date]);
   const currentStreak = useMemo(() => getCurrentSharedStreak(completions, date), [completions, date]);
   const longestStreak = useMemo(() => getLongestSharedStreak(completions), [completions]);
+  const hasIncomingInteractions = useMemo(
+    () => nudges.some((item) => item.date === date && item.to === activeActor) || reactions.some((item) => item.date === date && item.to === activeActor),
+    [activeActor, date, nudges, reactions],
+  );
 
   const ringSize = Math.min(188, Math.max(164, width - 210));
   const contentWidth = Math.min(540, Math.max(0, width - 36));
@@ -120,6 +127,18 @@ export default function TodayScreen() {
               onSave={saveDailyMessage}
             />
           </View>
+
+          {hasIncomingInteractions ? (
+            <View style={styles.messageSpacing}>
+              <DailyInteractionCard
+                date={date}
+                nudges={nudges}
+                reactions={reactions}
+                activeActor={activeActor}
+                displayNames={displayNames}
+              />
+            </View>
+          ) : null}
 
           <View style={styles.listHeader}>
             <View>
