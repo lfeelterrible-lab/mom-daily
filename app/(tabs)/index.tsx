@@ -1,12 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DailyHabitCard } from '@/components/DailyHabitCard';
 import { DailyMessageCard } from '@/components/DailyMessageCard';
-import { FeedbackToast } from '@/components/FeedbackToast';
 import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { ReactionPicker } from '@/components/ReactionPicker';
 import { SharedProgressRing } from '@/components/SharedProgressRing';
@@ -35,8 +34,6 @@ export default function TodayScreen() {
   const displayNames = useMomDailyStore((state) => state.displayNames);
   const pairPresence = useMomDailyStore((state) => state.pairPresence);
   const isOnline = useMomDailyStore((state) => state.isOnline);
-  const lastEvent = useMomDailyStore((state) => state.lastEvent);
-  const clearEvent = useMomDailyStore((state) => state.clearEvent);
   const toggleCompletion = useMomDailyStore((state) => state.toggleCompletion);
   const sendNudge = useMomDailyStore((state) => state.sendNudge);
   const addReaction = useMomDailyStore((state) => state.addReaction);
@@ -46,12 +43,6 @@ export default function TodayScreen() {
   const summary = useMemo(() => getDaySummary(completions, date), [completions, date]);
   const currentStreak = useMemo(() => getCurrentSharedStreak(completions, date), [completions, date]);
   const longestStreak = useMemo(() => getLongestSharedStreak(completions), [completions]);
-
-  useEffect(() => {
-    if (!lastEvent) return;
-    const timeout = setTimeout(clearEvent, 4200);
-    return () => clearTimeout(timeout);
-  }, [clearEvent, lastEvent]);
 
   const ringSize = Math.min(188, Math.max(164, width - 210));
   const contentWidth = Math.min(540, Math.max(0, width - 36));
@@ -180,7 +171,6 @@ export default function TodayScreen() {
             <Text style={[styles.footerText, { color: colors.inkMuted }]}>所有任务都可随时完成，不需要按时间顺序；建议时间只作轻轻提醒。</Text>
           </View>
         </ScrollView>
-        {lastEvent ? <FeedbackToast message={lastEvent.message} offline={!isOnline} /> : null}
         <ReactionPicker
           visible={Boolean(reactionHabit)}
           habitName={reactionHabit?.name}

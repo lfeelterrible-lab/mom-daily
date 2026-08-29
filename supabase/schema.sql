@@ -341,6 +341,8 @@ alter table public.notification_settings enable row level security;
 -- Realtime DELETE payloads need the old habit/user/date values so the other phone can update immediately.
 alter table public.daily_completions replica identity full;
 alter table public.daily_messages replica identity full;
+alter table public.reactions replica identity full;
+alter table public.nudges replica identity full;
 
 do $$
 begin
@@ -352,6 +354,20 @@ end $$;
 do $$
 begin
   alter publication supabase_realtime add table public.daily_messages;
+exception when duplicate_object then
+  null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.reactions;
+exception when duplicate_object then
+  null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.nudges;
 exception when duplicate_object then
   null;
 end $$;

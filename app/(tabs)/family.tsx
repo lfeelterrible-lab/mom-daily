@@ -1,12 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
-import { FeedbackToast } from '@/components/FeedbackToast';
 import { AppMark } from '@/components/AppMark';
 import { PairPresenceBar } from '@/components/PairPresenceBar';
 import { defaultHabits } from '@/constants/habits';
@@ -38,8 +37,6 @@ export default function FamilyScreen() {
   const setOnline = useMomDailyStore((state) => state.setOnline);
   const pendingSync = useMomDailyStore((state) => state.pendingSync);
   const resetDemo = useMomDailyStore((state) => state.resetDemo);
-  const lastEvent = useMomDailyStore((state) => state.lastEvent);
-  const clearEvent = useMomDailyStore((state) => state.clearEvent);
   const [copied, setCopied] = useState(false);
   const [joinInviteCode, setJoinInviteCode] = useState('');
   const [joinError, setJoinError] = useState('');
@@ -50,12 +47,6 @@ export default function FamilyScreen() {
   const [isUpdatingIdentity, setIsUpdatingIdentity] = useState(false);
   const [identityPickerOpen, setIdentityPickerOpen] = useState(false);
   const pairConnected = demoMode || (pairMemberCount >= 2 && Boolean(userIds.me) && Boolean(userIds.mom));
-
-  useEffect(() => {
-    if (!lastEvent) return;
-    const timeout = setTimeout(clearEvent, 4200);
-    return () => clearTimeout(timeout);
-  }, [clearEvent, lastEvent]);
 
   const copyInvite = async () => {
     await Clipboard.setStringAsync(inviteCode);
@@ -480,7 +471,6 @@ export default function FamilyScreen() {
             <Ionicons name="lock-closed-outline" color={colors.inkSoft} size={15} />
           </View>
         </ScrollView>
-        {lastEvent ? <FeedbackToast message={lastEvent.message} offline={!isOnline} /> : null}
       </View>
     </SafeAreaView>
   );

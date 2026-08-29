@@ -1,25 +1,41 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect } from 'react';
+import { View } from 'react-native';
 
+import { FeedbackToast } from '@/components/FeedbackToast';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useCloudBootstrap } from '@/hooks/useCloudBootstrap';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { usePairPresence } from '@/hooks/usePairPresence';
 import { useRealtimeCompletions } from '@/hooks/useRealtimeCompletions';
 import { useRealtimeDailyMessages } from '@/hooks/useRealtimeDailyMessages';
+import { useRealtimeInteractions } from '@/hooks/useRealtimeInteractions';
 import { useSyncQueue } from '@/hooks/useSyncQueue';
+import { useMomDailyStore } from '@/store/useMomDailyStore';
 
 export default function TabLayout() {
   const { colors } = useAppTheme();
   useRealtimeCompletions();
   useRealtimeDailyMessages();
+  useRealtimeInteractions();
   useCloudBootstrap();
   useNetworkStatus();
   usePairPresence();
   useSyncQueue();
+  const isOnline = useMomDailyStore((state) => state.isOnline);
+  const lastEvent = useMomDailyStore((state) => state.lastEvent);
+  const clearEvent = useMomDailyStore((state) => state.clearEvent);
+
+  useEffect(() => {
+    if (!lastEvent) return;
+    const timeout = setTimeout(clearEvent, 4200);
+    return () => clearTimeout(timeout);
+  }, [clearEvent, lastEvent]);
 
   return (
-    <Tabs
+    <View style={{ flex: 1 }}>
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
@@ -41,7 +57,7 @@ export default function TabLayout() {
           paddingVertical: 2,
         },
       }}>
-      <Tabs.Screen
+        <Tabs.Screen
         name="index"
         options={{
           title: '今天',
@@ -68,7 +84,9 @@ export default function TabLayout() {
           title: '我们',
           tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" color={color} size={size ?? 22} />,
         }}
-      />
-    </Tabs>
+        />
+      </Tabs>
+      {lastEvent ? <FeedbackToast message={lastEvent.message} offline={!isOnline} /> : null}
+    </View>
   );
 }

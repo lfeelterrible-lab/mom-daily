@@ -5,7 +5,7 @@ import { getPairMembers, mapPairMembers, type PairMember } from '@/features/pair
 import { addLocalDays } from '@/lib/date';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { useMomDailyStore, type Actor, type CompletionByDate, type DailyMessage, type DailyMessagesByDate } from '@/store/useMomDailyStore';
+import { useMomDailyStore, type Actor, type CompletionByDate, type DailyMessagesByDate, type Nudge, type Reaction } from '@/store/useMomDailyStore';
 
 const buildCloudCompletions = (rows: Array<{ habit_id: string; user_id: string; date: string; completed_at: string }>, userIds: { me: string; mom: string }): CompletionByDate => {
   const completions: CompletionByDate = {};
@@ -32,6 +32,24 @@ const buildCloudDailyMessages = (
   return messages;
 };
 
+const buildCloudNudges = (
+  rows: Array<{ id: string; habit_id: string; from_user: string; to_user: string; date: string; created_at: string }>,
+  userIds: { me: string; mom: string },
+): Nudge[] => rows.flatMap((row) => {
+  const from: Actor | null = row.from_user === userIds.me ? 'me' : row.from_user === userIds.mom ? 'mom' : null;
+  const to: Actor | null = row.to_user === userIds.me ? 'me' : row.to_user === userIds.mom ? 'mom' : null;
+  return from && to ? [{ id: row.id, habitId: row.habit_id, from, to, date: row.date, createdAt: row.created_at }] : [];
+});
+
+const buildCloudReactions = (
+  rows: Array<{ id: string; habit_id: string; from_user: string; to_user: string; emoji: string; date: string; created_at: string }>,
+  userIds: { me: string; mom: string },
+): Reaction[] => rows.flatMap((row) => {
+  const from: Actor | null = row.from_user === userIds.me ? 'me' : row.from_user === userIds.mom ? 'mom' : null;
+  const to: Actor | null = row.to_user === userIds.me ? 'me' : row.to_user === userIds.mom ? 'mom' : null;
+  return from && to ? [{ id: row.id, habitId: row.habit_id, from, to, emoji: row.emoji, date: row.date, createdAt: row.created_at }] : [];
+});
+
 export const useCloudBootstrap = () => {
   const demoMode = useMomDailyStore((state) => state.demoMode);
   const activeActor = useMomDailyStore((state) => state.activeActor);
@@ -39,6 +57,8 @@ export const useCloudBootstrap = () => {
   const setPairConnection = useMomDailyStore((state) => state.setPairConnection);
   const setCloudCompletions = useMomDailyStore((state) => state.setCloudCompletions);
   const setCloudDailyMessages = useMomDailyStore((state) => state.setCloudDailyMessages);
+  const setCloudNudges = useMomDailyStore((state) => state.setCloudNudges);
+  const setCloudReactions = useMomDailyStore((state) => state.setCloudReactions);
   const date = useLocalDate();
 
   useEffect(() => {
@@ -133,14 +153,43 @@ export const useCloudBootstrap = () => {
       }
       if (cancelled) return;
       setCloudDailyMessages(buildCloudDailyMessages(messageRows, connection.userIds));
+
+      const [nudgesResult, reactionsResult] = await Promise.all([
+        client
+          .from('nudges')
+          .select('id, habit_id, from_user, to_user, date, created_at')
+          .eq('pair_id', targetPairId)
+          .eq('date', date)
+          .order('created_at', { ascending: true }),
+        client
+          .from('reactions')
+          .select('id, habit_id, from_user, to_user, emoji, date, created_at')
+          .eq('pair_id', targetPairId)
+          .eq('date', date)
+          .order('created_at', { ascending: true }),
+      ]);
+      if (cancelled || nudgesResult.error || reactionsResult.error) return;
+      setCloudNudges(buildCloudNudges(
+        (nudgesResult.data ?? []) as Array<{ id: string; habit_id: string; from_user: string; to_user: string; date: string; created_at: string }>,
+        connection.userIds,
+      ));
+      setCloudReactions(buildCloudReactions(
+        (reactionsResult.data ?? []) as Array<{ id: string; habit_id: string; from_user: string; to_user: string; emoji: string; date: string; created_at: string }>,
+        connection.userIds,
+      ));
     };
 
     void load();
+    const refreshOnReturn = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') void load();
+    };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', refreshOnReturn);
     const refreshTimer = setInterval(() => void load(), 60_000);
     return () => {
       cancelled = true;
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', refreshOnReturn);
       clearInterval(refreshTimer);
       if (memberChannel) void client.removeChannel(memberChannel);
     };
-  }, [activeActor, date, demoMode, pairId, setCloudCompletions, setCloudDailyMessages, setPairConnection]);
+  }, [activeActor, date, demoMode, pairId, setCloudCompletions, setCloudDailyMessages, setCloudNudges, setCloudReactions, setPairConnection]);
 };

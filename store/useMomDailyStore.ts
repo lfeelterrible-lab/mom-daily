@@ -98,11 +98,15 @@ type Store = {
   setPairPresence: (presence: PairPresence) => void;
   setCloudCompletions: (completions: CompletionByDate) => void;
   setCloudDailyMessages: (messages: DailyMessagesByDate) => void;
+  setCloudNudges: (nudges: Nudge[]) => void;
+  setCloudReactions: (reactions: Reaction[]) => void;
   setNotification: (key: 'enabled' | 'morningReminder' | 'eveningReminder', value: boolean) => void;
   toggleCompletion: (habitId: string, actor?: Actor) => void;
   applyRemoteCompletion: (habitId: string, actor: Actor, completed: boolean, date?: string) => void;
   saveDailyMessage: (content: string, actor?: Actor) => void;
   applyRemoteDailyMessage: (actor: Actor, content: string, date?: string, updatedAt?: string) => void;
+  applyRemoteNudge: (nudge: Nudge) => void;
+  applyRemoteReaction: (reaction: Reaction) => void;
   sendNudge: (habitId: string, actor?: Actor) => void;
   addReaction: (habitId: string, emoji: string, actor?: Actor) => void;
   clearEvent: () => void;
@@ -227,6 +231,8 @@ export const useMomDailyStore = create<Store>()(
       setPairPresence: (pairPresence) => set({ pairPresence }),
       setCloudCompletions: (completions) => set({ completions }),
       setCloudDailyMessages: (dailyMessages) => set({ dailyMessages }),
+      setCloudNudges: (nudges) => set({ nudges }),
+      setCloudReactions: (reactions) => set({ reactions }),
       setNotification: (key, value) =>
         set((state) => ({
           notificationSettings: { ...state.notificationSettings, [key]: value },
@@ -348,6 +354,33 @@ export const useMomDailyStore = create<Store>()(
               content && isOtherPerson
                 ? { id: makeId('remote-message'), tone: 'success', message: (actor === 'mom' ? '妈妈' : '我') + '留下了今日寄语' }
                 : state.lastEvent,
+          };
+        });
+      },
+      applyRemoteNudge: (nudge) => {
+        set((state) => {
+          if (state.nudges.some((item) => item.id === nudge.id)) return state;
+          const habitName = defaultHabits.find((habit) => habit.id === nudge.habitId)?.name ?? '这件小事';
+          return {
+            nudges: [...state.nudges, nudge],
+            lastEvent: {
+              id: makeId('remote-nudge'),
+              tone: 'neutral',
+              message: (nudge.from === 'mom' ? '妈妈' : '我') + '提醒你完成「' + habitName + '」',
+            },
+          };
+        });
+      },
+      applyRemoteReaction: (reaction) => {
+        set((state) => {
+          if (state.reactions.some((item) => item.id === reaction.id)) return state;
+          return {
+            reactions: [...state.reactions, reaction],
+            lastEvent: {
+              id: makeId('remote-reaction'),
+              tone: 'success',
+              message: (reaction.from === 'mom' ? '妈妈' : '我') + '给你发送了 ' + reaction.emoji,
+            },
           };
         });
       },
